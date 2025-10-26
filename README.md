@@ -51,3 +51,5 @@ npx expo start
  ```bash
  npx expo start --tunnel
 ```
+
+If you enconter "Error: Failed to install \<ANY PACKAGE\>", use sudo to download.
