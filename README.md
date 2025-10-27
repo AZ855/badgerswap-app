@@ -99,7 +99,7 @@ git push origin main
 |--------------|----------------|-----------------|--------------------------|
 | **A** | [Name 1] | `member-a` | Authentication & Profile |
 | **B** | Chenchen Zheng | `chenchen` | Marketplace Core |
-| **C** | [Name 3] | `member-c` | Item Details & Favorites |
+| **C** | Johnny Hong | `johnny` | Item Details & Favorites |
 | **D** | [Name 4] | `member-d` | Messaging & Notifications |
 
 
