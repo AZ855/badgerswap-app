@@ -52,4 +52,37 @@ npx expo start
  npx expo start --tunnel
 ```
 
-If you enconter "Error: Failed to install \<ANY PACKAGE\>", use sudo to download.
+If you enconter "Error: Failed to install ANY PACKAGE", use sudo to download.
+
+### For setting up personal branches
+
+Make sure have the latest main
+
+```bash
+git checkout main
+git pull origin main
+```
+
+Create a branch using own name
+
+```bash
+git checkout -b name
+git push -u origin name
+```
+
+Work and commit normally
+
+```bash
+git add -A
+git commit -m "feat: added profile screen"
+git push
+```
+
+Whenever main changes:
+
+```bash
+git fetch origin
+git merge origin/main
+# or
+git rebase origin/main
+```
