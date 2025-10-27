@@ -78,11 +78,13 @@ git commit -m "feat: added profile screen"
 git push
 ```
 
-Whenever main changes:
+Merge own branch to main (only for instruction update rn)
 
 ```bash
-git fetch origin
-git merge origin/main
-# or
-git rebase origin/main
+git checkout main
+git pull origin main
+
+git merge name
+
+git push origin main
 ```
