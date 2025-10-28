@@ -96,11 +96,11 @@ git push origin main
 ### Team Members & Branch Names
 
 | **Role ID** | **Member Name** | **Branch Name** | **Main Responsibility** |
-|--------------|----------------|-----------------|--------------------------|
-| **A** | Julie Chen | `julie` | Authentication & Profile |
-| **B** | Chenchen Zheng | `chenchen` | Marketplace Core |
-| **C** | Johnny Hong | `johnny` | Item Details & Favorites |
-| **D** | [Name 4] | `member-d` | Messaging & Notifications |
+|--------------|-----------------|--------------|--------------------------|
+| **A** | Julie Chen      | `julie`      | Authentication & Profile |
+| **B** | Chenchen Zheng  | `chenchen`   | Marketplace Core |
+| **C** | Johnny Hong     | `johnny`     | Item Details & Favorites |
+| **D** | Kane Li         | `kane`       | Messaging & Notifications |
 
 
 Each member commits only to their own branch during development and merges on milestone deadlines.
