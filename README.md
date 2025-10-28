@@ -134,3 +134,5 @@ Workload and difficulty are evenly distributed among all members.
 - **Role D – Messaging & Notifications:** Develops chat interfaces, navigation between screens, and later adds notifications and real-time updates.
 
 All four roles contribute one major screen or feature per milestone, ensuring balanced progress and no blocking dependencies.
+
+---
