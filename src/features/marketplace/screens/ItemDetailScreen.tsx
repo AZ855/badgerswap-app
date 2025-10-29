@@ -12,7 +12,6 @@ import { useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../../../theme/colors';
 
-// If you have these from Role B, use them:
 import { getItemById } from '../mock/listings'; // placeholder import
 
 const { width } = Dimensions.get('window');
