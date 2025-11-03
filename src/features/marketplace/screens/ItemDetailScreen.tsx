@@ -1,15 +1,15 @@
-import React, { useMemo, useRef, useState } from 'react';
+import { Feather } from '@expo/vector-icons';
+import { useLocalSearchParams } from 'expo-router';
+import React, { useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
+  Dimensions,
   ScrollView,
   StyleSheet,
-  Dimensions,
+  Text,
   TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../../../theme/colors';
 
 import { getItemById } from '../mock/listings'; // placeholder import
