@@ -1,4 +1,2 @@
 import ItemDetailScreen from '../src/features/marketplace/screens/ItemDetailScreen';
-export default function Page() {
-  return <ItemDetailScreen />;
-}
+export default ItemDetailScreen;
