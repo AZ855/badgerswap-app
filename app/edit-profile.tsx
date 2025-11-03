@@ -1,2 +1,5 @@
-import EditProfileScreen from '../src/features/profile/screens/EditProfileScreen';
-export default EditProfileScreen;
+import UnderConstruction from '../src/components/UnderConstruction';
+
+export default function EditProfileScreen() {
+  return <UnderConstruction title="Edit profile screen coming soon" />;
+}

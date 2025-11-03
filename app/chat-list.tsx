@@ -1,2 +1,5 @@
-import ChatListScreen from '../src/features/chat/screens/ChatListScreen';
-export default ChatListScreen;
+import UnderConstruction from '../src/components/UnderConstruction';
+
+export default function ChatListScreen() {
+  return <UnderConstruction title="Chat list screen coming soon" />;
+}
