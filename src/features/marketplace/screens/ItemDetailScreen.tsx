@@ -1,122 +1,124 @@
-import { Feather } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  Dimensions,
+  View,
+  Text,
+  TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+  Dimensions,
+  Image,
+  Animated,
 } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../../../theme/colors';
-
-import { getItemById } from '../mock/listings'; // placeholder import
+import { getItemById } from '../mock/listings';
 
 const { width } = Dimensions.get('window');
 
 export default function ItemDetailScreen() {
-  const params = useLocalSearchParams() as { itemId?: string };
+  const params = useLocalSearchParams<{ itemId?: string }>();
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isSaved, setIsSaved] = useState(false);
-  const [note, setNote] = useState(''); 
 
-  // fallback item if mock list helper isn't wired yet
-  const fallbackItem = {
-    id: 'local-fallback',
-    title: 'Calculus Textbook - 9th Edition',
-    price: 45,
-    condition: 'Good',
+  // Get item details from mock listings based on route param
+  const itemId = params.itemId ?? '1';
+  const data = getItemById(itemId);
+
+  // Build a view model with safe fallbacks
+  const item = {
+    title: data?.title ?? 'Item',
+    price: data?.price ?? 0,
+    condition: data?.condition ?? 'Good',
     description:
-      'Used calculus textbook in good condition. Some highlighting and notes in margins, but all pages are intact. Great for MATH 221/222. Originally $180, selling for $45.',
-    images: [null, null, null],
-    seller: { name: 'Sarah Johnson', verified: true, rating: 4.8 },
-    category: 'Books',
-    postedDate: '2 days ago',
-    location: 'College Library',
+      data?.description ??
+      'No description provided.',
+    images: data?.images && data.images.length > 0 ? data.images : [null],
+    seller: data?.seller ?? {
+      name: 'Chenchen Zheng',
+      verified: true,
+      rating: 4.8,
+    },
+    category: (data?.category ?? 'other').replace(/^(\w)/, (m) => m.toUpperCase()),
+    postedDate:
+      data?.postedDate ?? formatTimeAgo(data?.postedAt ?? new Date().toISOString()),
   };
 
-  // try to fetch from Role B’s mock; otherwise use fallback
-  const item = useMemo(() => {
-    try {
-      if (params?.itemId) {
-        const found = getItemById?.(String(params.itemId));
-        if (found) {
-          return {
-            id: found.id,
-            title: found.title,
-            price: found.price,
-            condition: found.condition ?? 'Good',
-            description:
-              'No description provided. (Mock data)\n\nThis is a placeholder for Milestone 1.',
-            images: [null], // no real images for now
-            seller: { name: 'Seller', verified: true, rating: 4.7 },
-            category:
-              (found.category?.charAt(0).toUpperCase() + found.category?.slice(1)) ||
-              'Other',
-            postedDate: 'Today',
-            location: found.location ?? 'UW-Madison',
-          };
-        }
-      }
-    } catch (_) {}
-    return fallbackItem;
-  }, [params?.itemId]);
+  const images = item.images.length > 0 ? item.images : [null];
 
-  const images = item.images?.length ? item.images : [null];
+  const MAX_NAME_CHARS = 11; // Target length equal to "Johnny Hong"
+  const truncateName = (name: string, max: number) =>
+    name.length > max ? `${name.slice(0, Math.max(0, max - 3))}...` : name;
+  const displaySellerName = truncateName(item.seller.name, MAX_NAME_CHARS);
+
+  function formatTimeAgo(iso: string) {
+    const mins = Math.max(1, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
+    if (mins < 60) return `${mins} minutes ago`;
+    const h = Math.floor(mins / 60);
+    if (h < 24) return `${h} hours ago`;
+    const d = Math.floor(h / 24);
+    return `${d} days ago`;
+  }
 
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Image */}
-        <View style={styles.imageContainer}>
-          <View style={styles.imagePlaceholder}>
-            <Feather
-              name={item.category?.toLowerCase() === 'books' ? 'book' : 'image'}
-              size={64}
-              color="#9CA3AF"
-            />
-          </View>
-
-          {images.length > 1 && (
-            <View style={styles.indicators}>
-              {images.map((_, i) => (
-                <View key={i} style={[styles.indicator, i === 0 && styles.indicatorActive]} />
-              ))}
-            </View>
-          )}
-        </View>
+        {/* Image Carousel */}
+        <Carousel images={images} currentIndex={currentImageIndex} setIndex={setCurrentImageIndex} />
 
         {/* Content */}
         <View style={styles.content}>
-          {/* Title + Favorite */}
           <View style={styles.header}>
             <View style={styles.titleContainer}>
-              <Text style={styles.title} numberOfLines={2}>
-                {item.title}
-              </Text>
+              <Text style={styles.title}>{item.title}</Text>
               <Text style={styles.category}>{item.category}</Text>
-              {!!item.location && <Text style={styles.location}>{item.location}</Text>}
             </View>
-
-            <TouchableOpacity
-              onPress={() => setIsSaved((s) => !s)}
-              accessibilityRole="button"
-              accessibilityLabel={isSaved ? 'Unsave' : 'Save'}
-            >
-              <Feather name="heart" size={26} color={isSaved ? COLORS.primary : '#9CA3AF'} />
+            <TouchableOpacity onPress={() => setIsSaved(!isSaved)}>
+              <Feather
+                name="heart"
+                size={24}
+                color={isSaved ? COLORS.primary : '#9CA3AF'}
+              />
             </TouchableOpacity>
           </View>
 
-          {/* Price */}
           <Text style={styles.price}>${item.price}</Text>
-
-          {/* Meta */}
+          
           <View style={styles.metaContainer}>
             <View style={styles.conditionBadge}>
               <Text style={styles.conditionText}>{item.condition}</Text>
             </View>
             <Text style={styles.postedDate}>{item.postedDate}</Text>
+          </View>
+
+          {/* Seller Info */}
+          <View style={styles.sellerCard}>
+            <View style={styles.sellerLeft}>
+              <View style={styles.sellerAvatar}>
+                <Text style={styles.sellerAvatarText}>
+                  {item.seller.name.split(' ').map(n => n[0]).join('')}
+                </Text>
+              </View>
+              <View>
+                <View style={styles.sellerNameContainer}>
+                  <Text style={styles.sellerName} numberOfLines={1} ellipsizeMode="clip">
+                    {displaySellerName}
+                  </Text>
+                  {item.seller.verified && (
+                    <View style={{ marginLeft: 6, flexShrink: 0 }}>
+                      <Feather name="check-circle" size={16} color={COLORS.primary} />
+                    </View>
+                  )}
+                </View>
+                <View style={styles.ratingContainer}>
+                  <Feather name="star" size={14} color="#F59E0B" />
+                  <Text style={styles.rating}>{item.seller.rating}</Text>
+                </View>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.viewProfileButton}>
+              <Text style={styles.viewProfileText}>View Profile</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Description */}
@@ -125,21 +127,7 @@ export default function ItemDetailScreen() {
             <Text style={styles.description}>{item.description}</Text>
           </View>
 
-          {/* Personal note – local only placeholder component */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Your note (local)</Text>
-            <View style={styles.noteBox}>
-              <TextInput
-                placeholder="Add a quick note about this item…"
-                value={note}
-                onChangeText={setNote}
-                style={styles.noteInput}
-                multiline
-              />
-            </View>
-          </View>
-
-          {/* Report - placeholder for milestone 1 */}
+          {/* Report Button */}
           <TouchableOpacity style={styles.reportButton}>
             <Feather name="flag" size={16} color={COLORS.primary} />
             <Text style={styles.reportText}>Report this listing</Text>
@@ -147,86 +135,348 @@ export default function ItemDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* Bottom: Favorite button only */}
+      {/* Bottom Actions */}
       <View style={styles.bottomActions}>
         <TouchableOpacity
-          style={[styles.favoriteButton, isSaved && styles.favoriteButtonActive]}
-          onPress={() => setIsSaved((s) => !s)}
+          style={styles.saveButton}
+          onPress={() => setIsSaved(!isSaved)}
         >
           <Feather
             name="heart"
-            size={20}
-            color={isSaved ? COLORS.white : COLORS.primary}
+            size={24}
+            color={isSaved ? COLORS.primary : '#374151'}
           />
-          <Text
-            style={[
-              styles.favoriteButtonText,
-              isSaved && styles.favoriteButtonTextActive,
-            ]}
-          >
-            {isSaved ? 'Saved' : 'Add to Favorites'}
-          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.messageButton}
+          onPress={() => router.push({ 
+            pathname: '/chat', 
+            params: { 
+              userId: 'seller123',
+              userName: item.seller.name 
+            } 
+          })}
+        >
+          <Feather name="message-circle" size={20} color={COLORS.white} />
+          <Text style={styles.messageButtonText}>Message Seller</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
 
-{/* Styles */}
+function Carousel({ images, currentIndex, setIndex }: { images: (string | null)[]; currentIndex: number; setIndex: (i: number) => void; }) {
+  const { width } = Dimensions.get('window');
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const listRef = useRef<Animated.FlatList<string | null>>(null);
+
+  const onMomentumEnd = (e: any) => {
+    const i = Math.round(e.nativeEvent.contentOffset.x / width);
+    setIndex(i);
+  };
+
+  const goTo = (i: number) => {
+    if (i < 0 || i >= images.length) return;
+    // @ts-ignore - Animated.FlatList has scrollToIndex
+    listRef.current?.scrollToIndex?.({ index: i, animated: true });
+    setIndex(i);
+  };
+
+  return (
+    <View style={styles.imageContainer}>
+      <Animated.FlatList
+        ref={listRef}
+        data={images}
+        keyExtractor={(_, idx) => String(idx)}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={onMomentumEnd}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+          { useNativeDriver: false }
+        )}
+        renderItem={({ item }) => (
+          <View style={{ width }}>
+            {item ? (
+              <Image source={{ uri: item }} style={styles.image} resizeMode="cover" />
+            ) : (
+              <View style={styles.imagePlaceholder}>
+                <Feather name="book" size={64} color="#9CA3AF" />
+              </View>
+            )}
+          </View>
+        )}
+      />
+
+      {images.length > 1 && (
+        <View style={styles.indicators}>
+          {images.map((_, i) => {
+            const inputRange = [(i - 1) * width, i * width, (i + 1) * width];
+            const dotWidth = scrollX.interpolate({
+              inputRange,
+              outputRange: [8, 24, 8],
+              extrapolate: 'clamp',
+            });
+            const opacity = scrollX.interpolate({
+              inputRange,
+              outputRange: [0.5, 1, 0.5],
+              extrapolate: 'clamp',
+            });
+            return (
+              <Animated.View key={i} style={[styles.indicator, { width: dotWidth, opacity }]} />
+            );
+          })}
+        </View>
+      )}
+
+      {images.length > 1 && (
+        <>
+          <TouchableOpacity style={[styles.navButton, styles.navLeft]} onPress={() => goTo(currentIndex - 1)} accessibilityLabel="Previous image">
+            <Feather name="chevron-left" size={22} color="#111827" />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.navButton, styles.navRight]} onPress={() => goTo(currentIndex + 1)} accessibilityLabel="Next image">
+            <Feather name="chevron-right" size={22} color="#111827" />
+          </TouchableOpacity>
+        </>
+      )}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
   imageContainer: {
-    width, height: width * 0.75, backgroundColor: '#E5E7EB', position: 'relative',
+    width: width,
+    height: width * 0.75,
+    backgroundColor: '#E5E7EB',
+    position: 'relative',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
   },
   imagePlaceholder: {
-    width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center',
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#F3F4F6',
   },
   indicators: {
-    position: 'absolute', bottom: 16, left: 0, right: 0, flexDirection: 'row',
-    justifyContent: 'center', gap: 8,
+    position: 'absolute',
+    bottom: 16,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
   },
-  indicator: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.5)' },
-  indicatorActive: { backgroundColor: COLORS.white, width: 24 },
-
-  content: { padding: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  titleContainer: { flex: 1, marginRight: 12 },
-  title: { fontSize: 24, fontWeight: '700', color: '#111827', marginBottom: 4 },
-  category: { fontSize: 14, color: '#6B7280' },
-  location: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
-
-  price: { fontSize: 32, fontWeight: '700', color: COLORS.primary, marginVertical: 12 },
-
-  metaContainer: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+  indicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  indicatorActive: {
+    backgroundColor: COLORS.white,
+    width: 24,
+  },
+  navButton: {
+    position: 'absolute',
+    top: '45%',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navLeft: { left: 12 },
+  navRight: { right: 12 },
+  content: {
+    padding: 20,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  titleContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  category: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  price: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: COLORS.primary,
+    marginBottom: 12,
+  },
+  metaContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 20,
+  },
   conditionBadge: {
-    backgroundColor: '#DBEAFE', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
   },
-  conditionText: { color: '#1E40AF', fontSize: 12, fontWeight: '600' },
-  postedDate: { fontSize: 14, color: '#6B7280' },
-
-  section: { marginTop: 14, marginBottom: 12 },
-  sectionTitle: { fontSize: 18, fontWeight: '600', color: '#111827', marginBottom: 10 },
-  description: { fontSize: 16, color: '#374151', lineHeight: 24 },
-
-  noteBox: {
-    backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: 12, padding: 12,
+  conditionText: {
+    color: '#1E40AF',
+    fontSize: 12,
+    fontWeight: '600',
   },
-  noteInput: { minHeight: 60, fontSize: 15, color: '#111827' },
-
-  reportButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },
-  reportText: { color: COLORS.primary, fontSize: 14, fontWeight: '500' },
-
+  postedDate: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  sellerCard: {
+    backgroundColor: COLORS.white,
+    padding: 16,
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  sellerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+    minWidth: 0,
+  },
+  sellerAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sellerAvatarText: {
+    color: COLORS.white,
+    fontWeight: '600',
+    fontSize: 18,
+  },
+  sellerNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    width: '100%',
+  },
+  sellerName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    flexShrink: 1,
+    flexGrow: 1,
+    overflow: 'hidden',
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  rating: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  viewProfileButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    marginLeft: 12,
+    flexShrink: 0,
+  },
+  viewProfileText: {
+    color: COLORS.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  section: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 12,
+  },
+  description: {
+    fontSize: 16,
+    color: '#374151',
+    lineHeight: 24,
+  },
+  reportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+  },
+  reportText: {
+    color: COLORS.primary,
+    fontSize: 14,
+    fontWeight: '500',
+  },
   bottomActions: {
-    padding: 16, backgroundColor: COLORS.white, borderTopWidth: 1, borderTopColor: COLORS.border,
+    flexDirection: 'row',
+    padding: 16,
+    backgroundColor: COLORS.white,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    gap: 12,
   },
-  favoriteButton: {
-    height: 56, borderRadius: 28, borderWidth: 1, borderColor: COLORS.primary,
-    backgroundColor: COLORS.white, flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 8,
+  saveButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  favoriteButtonActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  favoriteButtonText: { color: COLORS.primary, fontSize: 16, fontWeight: '700' },
-  favoriteButtonTextActive: { color: COLORS.white },
+  messageButton: {
+    flex: 1,
+    height: 56,
+    backgroundColor: COLORS.primary,
+    borderRadius: 28,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  messageButtonText: {
+    color: COLORS.white,
+    fontSize: 18,
+    fontWeight: '600',
+  },
 });

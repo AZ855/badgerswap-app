@@ -5,7 +5,28 @@ const ago = (mins: number) => new Date(now - mins * 60_000).toISOString();
 
 // sample set
 export const MOCK_LISTINGS: Item[] = [
-  { id: '1', title: 'Calculus (Stewart) 8th Ed.', price: 45, condition: 'Good', category: 'books', imageUrl: null, location: 'College Library', postedAt: ago(25), sellerId: 'u1' },
+  {
+    id: '1',
+    title: 'Calculus (Stewart) 8th Ed.',
+    price: 45,
+    condition: 'Good',
+    category: 'books',
+    imageUrl: null,
+    location: 'College Library',
+    postedAt: ago(25),
+    // Detail fields moved from ItemDetailScreen
+    description:
+      'Used calculus textbook in good condition. Some highlighting and notes in margins, but all pages are intact. Great for MATH 221/222. Originally $180, selling for $45.',
+    images: [null, null, null],
+    seller: {
+      name: 'Johnny Hong',
+      verified: true,
+      rating: 4.8,
+    },
+    // Optional display text; if omitted, UI will format postedAt
+    postedDate: '2 days ago',
+    sellerId: 'u1',
+  },
   { id: '2', title: 'Mini Fridge (3.2 cu ft)', price: 80, condition: 'Like New', category: 'furniture', imageUrl: null, location: 'Sellery Hall', postedAt: ago(75), sellerId: 'u2' },
   { id: '3', title: 'Desk Lamp w/ USB', price: 15, condition: 'Good', category: 'electronics', imageUrl: null, location: 'Union South', postedAt: ago(8), sellerId: 'u3' },
   { id: '4', title: 'UW Hoodie (M)', price: 25, condition: 'Excellent', category: 'clothing', imageUrl: null, location: 'Gordon Ave', postedAt: ago(180), sellerId: 'u4' },
