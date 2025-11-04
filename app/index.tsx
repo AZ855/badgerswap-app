@@ -12,5 +12,5 @@ export default function Index() {
     );
   }
 
-  return <Redirect href="/marketplace" />;
+  return <Redirect href="/login" />;
 }

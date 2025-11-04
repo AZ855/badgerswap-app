@@ -17,13 +17,9 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
 
   const handleLogin = () => {
-    const trimmed = email.trim().toLowerCase();
-    if (!trimmed || !password) {
+    // For now: any non-empty email/password navigates to marketplace
+    if (!email.trim() || !password) {
       Alert.alert('Error', 'Please enter email and password');
-      return;
-    }
-    if (!trimmed.endsWith('@wisc.edu')) {
-      Alert.alert('Error', 'Please use your UW-Madison email (@wisc.edu)');
       return;
     }
     router.replace('/marketplace');
