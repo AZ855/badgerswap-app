@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -12,16 +12,41 @@ import {
 } from 'react-native';
 import { COLORS } from '../../../theme/colors';
 
+
+const UW_EMAIL_RE = /^[a-z0-9._%+-]+@wisc\.edu$/i;
+
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
+  const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState('');
+  const [passwordTouched, setPasswordTouched] = useState(false);
+
+  const emailError = useMemo(() => {
+    const value = email.trim().toLowerCase();
+    if (!value) return 'Email is required';
+    if (!UW_EMAIL_RE.test(value)) return 'Please use your UW-Madison email (@wisc.edu)';
+    return '';
+  }, [email]);
+
+  const passwordError = useMemo(() => {
+    if (!password) return 'Password is required';
+    if (password.length < 6) return 'Password must be at least 6 characters';
+    return '';
+  }, [password]);
+
+  const isValid = !emailError && !passwordError;
 
   const handleLogin = () => {
-    // For now: any non-empty email/password navigates to marketplace
-    if (!email.trim() || !password) {
-      Alert.alert('Error', 'Please enter email and password');
+    
+    if (!emailTouched) setEmailTouched(true);
+    if (!passwordTouched) setPasswordTouched(true);
+
+    if (!isValid) {
+      Alert.alert('Invalid credentials', 'Please fix the fields highlighted in red.');
       return;
     }
+
+    
     router.replace('/marketplace');
   };
 
@@ -38,30 +63,47 @@ export default function LoginScreen() {
         <View style={styles.card}>
           <Text style={styles.label}>Email</Text>
           <TextInput
-            style={styles.input}
+            testID="emailInput"
+            style={[styles.input, (emailTouched && emailError) ? styles.inputError : null]}
             placeholder="your.name@wisc.edu"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(t) => setEmail(t)}
+            onBlur={() => setEmailTouched(true)}
             keyboardType="email-address"
             autoCapitalize="none"
             autoComplete="email"
             returnKeyType="next"
           />
+          {(emailTouched && emailError) ? (
+            <Text style={styles.errorText}>{emailError}</Text>
+          ) : null}
 
           <Text style={styles.label}>Password</Text>
           <TextInput
-            style={styles.input}
+            testID="passwordInput"
+            style={[styles.input, (passwordTouched && passwordError) ? styles.inputError : null]}
             placeholder="••••••••"
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(t) => setPassword(t)}
+            onBlur={() => setPasswordTouched(true)}
             secureTextEntry
             autoComplete="password"
             returnKeyType="done"
             onSubmitEditing={handleLogin}
           />
+          {(passwordTouched && passwordError) ? (
+            <Text style={styles.errorText}>{passwordError}</Text>
+          ) : null}
 
-          <TouchableOpacity style={styles.primaryBtn} onPress={handleLogin}>
-            <Text style={styles.primaryBtnText}>Login with UW Email</Text>
+          <TouchableOpacity
+            testID="loginButton"
+            style={[styles.primaryBtn, !isValid ? styles.primaryBtnDisabled : null]}
+            onPress={handleLogin}
+            disabled={!isValid}
+          >
+            <Text style={styles.primaryBtnText}>
+              Login with UW Email
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => router.push('/register')}>
@@ -114,14 +156,25 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     backgroundColor: COLORS.white,
-    marginBottom: 16,
+    marginBottom: 4,
+  },
+  inputError: {
+    borderColor: '#d32f2f',
+  },
+  errorText: {
+    color: '#d32f2f',
+    fontSize: 12,
+    marginBottom: 12,
   },
   primaryBtn: {
     backgroundColor: COLORS.primary,
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 8,
+  },
+  primaryBtnDisabled: {
+    opacity: 0.5,
   },
   primaryBtnText: { color: COLORS.white, fontSize: 16, fontWeight: '700' },
   linkText: {
