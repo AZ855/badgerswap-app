@@ -1,13 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import BottomNav from '../src/components/BottomNav';
 import { COLORS } from '../src/theme/colors';
 
 export default function ProfileScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.placeholder}>Profile screen coming soon</Text>
-      <BottomNav />
     </View>
   );
 }
