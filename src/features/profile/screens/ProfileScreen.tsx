@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { StyleSheet, Text, View, FlatList, Animated, Pressable } from 'react-native';
+import { StyleSheet, Text, View, FlatList, Animated, Pressable, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../theme/colors';
@@ -107,7 +107,7 @@ export default function ProfileScreen() {
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           {
             useNativeDriver: false,
-            listener: (e) => {
+            listener: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
               const y = e.nativeEvent.contentOffset.y;
               const next = y > 80;
               if (next !== isCollapsed) setIsCollapsed(next);
