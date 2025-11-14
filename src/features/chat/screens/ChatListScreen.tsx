@@ -10,7 +10,6 @@ import {
 import { router } from 'expo-router';
 import { Feather as Icon } from '@expo/vector-icons';
 import { COLORS } from '../../../theme/colors';
-import BottomNav from '../../../components/BottomNav';
 import { MOCK_CONVERSATIONS } from '../mock/conversations';
 
 
@@ -114,7 +113,6 @@ export default function ChatListScreen() {
           )}
         </View>
       )}
-      <BottomNav />
     </View>
   );
 }

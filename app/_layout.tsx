@@ -1,8 +1,17 @@
-import { Stack } from 'expo-router';
+import React from 'react';
+import { Stack, usePathname } from 'expo-router';
 import { COLORS } from '../src/theme/colors';
+import BottomNav from '../src/components/BottomNav';
 
 export default function RootLayout() {
+  const pathname = usePathname();
+  const showNav = pathname?.startsWith('/marketplace') ||
+                  pathname?.startsWith('/post-item') ||
+                  pathname?.startsWith('/chat-list') ||
+                  pathname?.startsWith('/profile');
+
   return (
+    <>
     <Stack
       screenOptions={{
         headerStyle: {
@@ -21,15 +30,19 @@ export default function RootLayout() {
         name="marketplace" 
         options={{ 
           title: 'BadgerSwap',
-          headerLeft: () => null, // Prevent back button
+          headerLeft: () => null,
+          gestureEnabled: false,
+          animation: 'none',
         }} 
       />
       <Stack.Screen name="item-detail" options={{ title: 'Item Details' }} />
-      <Stack.Screen name="post-item" options={{ title: 'Post Item' }} />
-      <Stack.Screen name="chat-list" options={{ title: 'Messages' }} />
+      <Stack.Screen name="post-item" options={{ title: 'Post Item', gestureEnabled: false, animation: 'none' }} />
+      <Stack.Screen name="chat-list" options={{ title: 'Messages', gestureEnabled: false, animation: 'none' }} />
       <Stack.Screen name="chat" options={{ title: 'Chat' }} />
-      <Stack.Screen name="profile" options={{ title: 'Profile' }} />
+      <Stack.Screen name="profile" options={{ title: 'Profile', gestureEnabled: false, animation: 'none' }} />
       <Stack.Screen name="edit-profile" options={{ title: 'Edit Profile' }} />
     </Stack>
+    {showNav && <BottomNav />}
+    </>
   );
 }
