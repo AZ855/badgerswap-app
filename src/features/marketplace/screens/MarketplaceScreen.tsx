@@ -63,7 +63,6 @@ export default function MarketplaceScreen() {
           keyExtractor={(i) => i.id}
           numColumns={2}
           renderItem={({ item }) => <ItemCard item={item} />}
-          contentContainerStyle={{ padding: 16 }}
           columnWrapperStyle={{ justifyContent: 'space-between', marginBottom: 16 }}
         />
       )}
