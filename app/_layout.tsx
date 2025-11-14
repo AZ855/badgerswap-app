@@ -59,6 +59,8 @@ export default function RootLayout() {
         }}
       />
       <Stack.Screen name="edit-profile" options={{ title: 'Edit Profile' }} />
+      <Stack.Screen name="settings" options={{ title: 'Settings and activity' }} />
+      <Stack.Screen name="activity" options={{ title: 'Activity' }} />
     </Stack>
     {showNav && <BottomNav />}
     </>
