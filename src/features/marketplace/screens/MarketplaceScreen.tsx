@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import React, { useMemo, useRef, useState } from 'react';
 import { FlatList, StyleSheet, Text, TextInput, View } from 'react-native';
+import BottomNav from '../../../components/BottomNav';
 import { COLORS } from '../../../theme/colors';
 // TODO: To be added
 import FilterBar from '../components/FilterBar';
@@ -63,9 +64,11 @@ export default function MarketplaceScreen() {
           keyExtractor={(i) => i.id}
           numColumns={2}
           renderItem={({ item }) => <ItemCard item={item} />}
+          contentContainerStyle={{ padding: 16, paddingBottom: 96 }}
           columnWrapperStyle={{ justifyContent: 'space-between', marginBottom: 16 }}
         />
       )}
+      <BottomNav />
     </View>
   );
 }
