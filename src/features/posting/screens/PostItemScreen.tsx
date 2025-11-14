@@ -1,8 +1,9 @@
-import { Feather as Icon } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,195 +15,387 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../theme/colors';
 
 const CATEGORIES = [
-  'Books',
-  'Electronics',
-  'Furniture',
-  'Clothing',
-  'Sports & Outdoors',
-  'Home & Kitchen',
-  'Other',
+  { id: 'books', name: 'Books', icon: 'book' },
+  { id: 'electronics', name: 'Electronics', icon: 'smartphone' },
+  { id: 'furniture', name: 'Furniture', icon: 'home' },
+  { id: 'clothing', name: 'Clothing', icon: 'shopping-bag' },
+  { id: 'sports', name: 'Sports', icon: 'activity' },
+  { id: 'kitchen', name: 'Kitchen', icon: 'coffee' },
+  { id: 'other', name: 'Other', icon: 'box' },
 ];
 
 const CONDITIONS = ['Like New', 'Excellent', 'Good', 'Fair'];
 
+const SUGGESTED_LOCATIONS = [
+  'Memorial Union',
+  'College Library',
+  'Union South',
+  'Grainger Hall',
+  'Dejope Residence Hall',
+  'Sellery Hall',
+  'Witte Hall',
+  'Engineering Hall',
+  'Campus Book Store',
+  'State Street',
+];
+
 export default function PostItemScreen() {
   const insets = useSafeAreaInsets();
+  const actionsAnim = useRef(new Animated.Value(0)).current;
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('');
+  const [categories, setCategories] = useState<string[]>([]);
   const [condition, setCondition] = useState('');
   const [price, setPrice] = useState('');
   const [description, setDescription] = useState('');
-  const [images, setImages] = useState<{ id: string }[]>([]);
-  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
-  const [showConditionPicker, setShowConditionPicker] = useState(false);
+  const [images, setImages] = useState<number[]>([]);
+  const [location, setLocation] = useState('');
+  const [showLocationSearch, setShowLocationSearch] = useState(false);
+  const [locationSearch, setLocationSearch] = useState('');
 
   const handleImagePicker = () => {
     Alert.alert(
       'Add Photos',
-      'Image picking is stubbed for now. Add a placeholder or cancel.',
+      'Choose an option',
       [
         {
-          text: 'Add Placeholder',
-          onPress: () => setImages((prev) => [...prev, { id: String(Date.now()) }]),
+          text: 'Take Photo',
+          onPress: () => {
+            if (images.length < 5) {
+              setImages([...images, images.length + 1]);
+            }
+          },
+        },
+        {
+          text: 'Choose from Gallery',
+          onPress: () => {
+            if (images.length < 5) {
+              setImages([...images, images.length + 1]);
+            }
+          },
         },
         { text: 'Cancel', style: 'cancel' },
       ]
     );
   };
 
-  const handlePostItem = () => {
-    if (!title.trim()) return Alert.alert('Error', 'Please enter a title');
-    if (!category) return Alert.alert('Error', 'Please select a category');
-    if (!condition) return Alert.alert('Error', 'Please select a condition');
-    if (!price.trim() || isNaN(Number(price))) return Alert.alert('Error', 'Please enter a valid price');
-    if (!description.trim()) return Alert.alert('Error', 'Please enter a description');
-    if (images.length === 0) return Alert.alert('Error', 'Please add at least one photo');
-
-    Alert.alert('Success!', 'Your item has been posted to the marketplace.', [
-      { text: 'OK', onPress: () => router.replace('/marketplace') },
-    ]);
+  const removeImage = (index: number) => {
+    setImages(images.filter((_, i) => i !== index));
   };
 
-  const navOffset = insets.bottom + 72; // keep bottom actions above persistent nav
+  const handlePostItem = () => {
+    if (!title.trim()) {
+      Alert.alert('Missing Info', 'Please enter a title');
+      return;
+    }
+    if (categories.length === 0) {
+      Alert.alert('Missing Info', 'Please select a category');
+      return;
+    }
+    if (!condition) {
+      Alert.alert('Missing Info', 'Please select item condition');
+      return;
+    }
+    if (!price.trim() || isNaN(Number(price))) {
+      Alert.alert('Invalid Price', 'Please enter a valid price');
+      return;
+    }
+    if (!description.trim()) {
+      Alert.alert('Missing Info', 'Please add a description');
+      return;
+    }
+    if (images.length === 0) {
+      Alert.alert('Missing Photos', 'Please add at least one photo');
+      return;
+    }
+    if (!location) {
+      Alert.alert('Missing Info', 'Please select a pickup location');
+      return;
+    }
+
+    Alert.alert(
+      '🎉 Posted!',
+      'Your item is now live on BadgerSwap marketplace.',
+      [{ text: 'View Listing', onPress: () => router.push('/marketplace') }]
+    );
+  };
+
+  const effectiveLocation = (location || locationSearch).trim();
+  const isFormValid = Boolean(title && categories.length > 0 && condition && price && description && images.length > 0 && effectiveLocation);
+
+  useEffect(() => {
+    Animated.timing(actionsAnim, {
+      toValue: isFormValid ? 1 : 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [isFormValid, actionsAnim]);
+
+  const filteredLocations = SUGGESTED_LOCATIONS.filter(loc =>
+    loc.toLowerCase().includes(locationSearch.toLowerCase())
+  );
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Photos */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Photos *</Text>
-          <Text style={styles.sectionSubtitle}>Add up to 5 photos</Text>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosContainer}>
-            {images.map((img, index) => (
-              <View key={img.id} style={styles.photoItem}>
-                <View style={styles.photoPlaceholder}>
-                  <Icon name="image" size={32} color="#9CA3AF" />
+      {/* Content */}
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
+      >
+        <View style={styles.content}>
+          {/* Photos Grid */}
+          <View style={styles.section}>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>Photos</Text>
+              <Text style={styles.required}>*</Text>
+              <Text style={styles.photoCount}>({images.length}/5)</Text>
+            </View>
+            <View style={styles.photoGrid}>
+              {images.map((img, index) => (
+                <View key={index} style={styles.photoItem}>
+                  <View style={styles.photoPreview}>
+                    <Text style={styles.photoEmoji}>📷</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.removePhotoButton}
+                    onPress={() => removeImage(index)}
+                  >
+                    <Feather name="x" size={12} color={COLORS.white} />
+                  </TouchableOpacity>
+                  {index === 0 && (
+                    <View style={styles.coverBadge}>
+                      <Text style={styles.coverText}>Cover</Text>
+                    </View>
+                  )}
                 </View>
-                <TouchableOpacity
-                  style={styles.removePhotoButton}
-                  onPress={() => setImages(images.filter((_, i) => i !== index))}
+              ))}
+              {images.length < 5 && (
+                <TouchableOpacity 
+                  style={styles.addPhotoButton} 
+                  onPress={handleImagePicker}
                 >
-                  <Icon name="x" size={16} color={COLORS.white} />
+                  <Feather name="upload" size={20} color="#9CA3AF" />
+                  <Text style={styles.addPhotoText}>Add</Text>
                 </TouchableOpacity>
-              </View>
-            ))}
+              )}
+            </View>
+          </View>
 
-            {images.length < 5 && (
-              <TouchableOpacity style={styles.addPhotoButton} onPress={handleImagePicker}>
-                <Icon name="camera" size={32} color="#9CA3AF" />
-                <Text style={styles.addPhotoText}>Add Photo</Text>
-              </TouchableOpacity>
-            )}
-          </ScrollView>
-        </View>
+          {/* Title */}
+          <View style={styles.section}>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>Title</Text>
+              <Text style={styles.required}>*</Text>
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="What are you selling?"
+              placeholderTextColor="#9CA3AF"
+              value={title}
+              onChangeText={setTitle}
+              maxLength={100}
+            />
+            <Text style={styles.charCount}>{title.length}/100</Text>
+          </View>
 
-        {/* Title */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Title *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g., Calculus Textbook 9th Edition"
-            value={title}
-            onChangeText={setTitle}
-            maxLength={100}
-          />
-        </View>
+          {/* Price */}
+          <View style={styles.section}>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>Price</Text>
+              <Text style={styles.required}>*</Text>
+            </View>
+            <View style={styles.priceInput}>
+              <Text style={styles.currencySymbol}>$</Text>
+              <TextInput
+                style={styles.priceField}
+                placeholder="0.00"
+                placeholderTextColor="#9CA3AF"
+                value={price}
+                onChangeText={setPrice}
+                keyboardType="decimal-pad"
+              />
+            </View>
+          </View>
 
-        {/* Category */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Category *</Text>
-          <TouchableOpacity style={styles.picker} onPress={() => setShowCategoryPicker((s) => !s)}>
-            <Text style={category ? styles.pickerText : styles.pickerPlaceholder}>
-              {category || 'Select category'}
-            </Text>
-            <Icon name="chevron-down" size={20} color="#6B7280" />
-          </TouchableOpacity>
-
-          {showCategoryPicker && (
-            <View style={styles.pickerOptions}>
+          {/* Category Chips (multi-select) */}
+          <View style={styles.section}>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>Category</Text>
+              <Text style={styles.required}>*</Text>
+            </View>
+            <View style={styles.chipContainer}>
               {CATEGORIES.map((cat) => (
                 <TouchableOpacity
-                  key={cat}
-                  style={styles.pickerOption}
+                  key={cat.id}
+                  style={[
+                    styles.chip,
+                    categories.includes(cat.id) && styles.chipActive,
+                  ]}
                   onPress={() => {
-                    setCategory(cat);
-                    setShowCategoryPicker(false);
+                    setCategories((prev) =>
+                      prev.includes(cat.id)
+                        ? prev.filter((c) => c !== cat.id)
+                        : [...prev, cat.id]
+                    );
                   }}
                 >
-                  <Text style={styles.pickerOptionText}>{cat}</Text>
-                  {category === cat && <Icon name="check" size={20} color={COLORS.primary} />}
+                  <Feather 
+                    name={cat.icon as any} 
+                    size={14} 
+                    color={categories.includes(cat.id) ? COLORS.white : '#374151'} 
+                  />
+                  <Text style={[
+                    styles.chipText,
+                    categories.includes(cat.id) && styles.chipTextActive,
+                  ]}>
+                    {cat.name}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
-          )}
-        </View>
+          </View>
 
-        {/* Condition */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Condition *</Text>
-          <TouchableOpacity style={styles.picker} onPress={() => setShowConditionPicker((s) => !s)}>
-            <Text style={condition ? styles.pickerText : styles.pickerPlaceholder}>
-              {condition || 'Select condition'}
-            </Text>
-            <Icon name="chevron-down" size={20} color="#6B7280" />
-          </TouchableOpacity>
-
-          {showConditionPicker && (
-            <View style={styles.pickerOptions}>
+          {/* Condition Chips */}
+          <View style={styles.section}>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>Condition</Text>
+              <Text style={styles.required}>*</Text>
+            </View>
+            <View style={styles.chipContainer}>
               {CONDITIONS.map((cond) => (
                 <TouchableOpacity
                   key={cond}
-                  style={styles.pickerOption}
-                  onPress={() => {
-                    setCondition(cond);
-                    setShowConditionPicker(false);
-                  }}
+                  style={[
+                    styles.chip,
+                    condition === cond && styles.chipActive,
+                  ]}
+                  onPress={() => setCondition(cond)}
                 >
-                  <Text style={styles.pickerOptionText}>{cond}</Text>
-                  {condition === cond && <Icon name="check" size={20} color={COLORS.primary} />}
+                  <Text style={[
+                    styles.chipText,
+                    condition === cond && styles.chipTextActive,
+                  ]}>
+                    {cond}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
-          )}
-        </View>
-
-        {/* Price */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Price *</Text>
-          <View style={styles.priceInput}>
-            <Text style={styles.currencySymbol}>$</Text>
-            <TextInput
-              style={styles.priceInputField}
-              placeholder="0"
-              value={price}
-              onChangeText={setPrice}
-              keyboardType="numeric"
-            />
           </View>
-        </View>
 
-        {/* Description */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Description *</Text>
-          <TextInput
-            style={styles.textarea}
-            placeholder="Describe your item (condition, features, reason for selling, etc.)"
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            numberOfLines={6}
-            textAlignVertical="top"
-            maxLength={500}
-          />
-          <Text style={styles.charCount}>{description.length}/500</Text>
-        </View>
+          {/* Location Search */}
+          <View style={styles.section}>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>Pickup Location</Text>
+              <Text style={styles.required}>*</Text>
+            </View>
+            <View style={styles.searchInputContainer}>
+              <Feather name="search" size={18} color="#9CA3AF" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search campus locations..."
+                placeholderTextColor="#9CA3AF"
+                value={location || locationSearch}
+                onChangeText={(text) => {
+                  setLocationSearch(text);
+                  setLocation('');
+                  setShowLocationSearch(true);
+                }}
+                onFocus={() => setShowLocationSearch(true)}
+              />
+              {location && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setLocation('');
+                    setLocationSearch('');
+                  }}
+                  style={styles.clearButton}
+                >
+                  <Feather name="x" size={18} color="#9CA3AF" />
+                </TouchableOpacity>
+              )}
+            </View>
+            
+            {/* Location Dropdown */}
+            {showLocationSearch && !location && (
+              <View style={styles.locationDropdown}>
+                <ScrollView style={styles.locationList} nestedScrollEnabled>
+                  {filteredLocations.length > 0 ? (
+                    filteredLocations.map((loc) => (
+                      <TouchableOpacity
+                        key={loc}
+                        style={styles.locationItem}
+                        onPress={() => {
+                          setLocation(loc);
+                          setLocationSearch('');
+                          setShowLocationSearch(false);
+                        }}
+                      >
+                        <Feather name="map-pin" size={16} color="#9CA3AF" />
+                        <Text style={styles.locationText}>{loc}</Text>
+                      </TouchableOpacity>
+                    ))
+                  ) : (
+                    <Text style={styles.noLocations}>No locations found</Text>
+                  )}
+                </ScrollView>
+              </View>
+            )}
+            
+            {location && (
+              <View style={styles.selectedLocation}>
+                <Feather name="map-pin" size={16} color="#10B981" />
+                <Text style={styles.selectedLocationText}>{location}</Text>
+              </View>
+            )}
+          </View>
 
-        <View style={{ height: navOffset + 56 }} />
+          {/* Description */}
+          <View style={styles.section}>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>Description</Text>
+              <Text style={styles.required}>*</Text>
+            </View>
+            <TextInput
+              style={styles.textarea}
+              placeholder="Describe your item (condition, features, reason for selling...)"
+              placeholderTextColor="#9CA3AF"
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              numberOfLines={5}
+              textAlignVertical="top"
+              maxLength={500}
+            />
+            <Text style={styles.charCount}>{description.length}/500</Text>
+          </View>
+
+          {/* Info Banner */}
+          <View style={[styles.infoBanner, { marginBottom: 24 }]}>
+            <Text style={styles.infoEmoji}>ℹ️</Text>
+            <View style={styles.infoContent}>
+              <Text style={styles.infoTitle}>Posting Tips</Text>
+              <Text style={styles.infoText}>• Use clear, well-lit photos</Text>
+              <Text style={styles.infoText}>• Be honest about condition</Text>
+              <Text style={styles.infoText}>• Price competitively</Text>
+              <Text style={styles.infoText}>• Respond to messages quickly</Text>
+            </View>
+          </View>
+          <View style={{ height: 8 }} />
+        </View>
       </ScrollView>
 
-      {/* Bottom Actions */}
-      <View style={[styles.bottomActions, { marginBottom: navOffset }]}>
+      {/* Slide-up Actions */}
+      <Animated.View
+        pointerEvents={isFormValid ? 'auto' : 'none'}
+        style={[
+          styles.bottomActions,
+          {
+            opacity: actionsAnim,
+            transform: [{ translateY: actionsAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) }],
+            bottom: insets.bottom + 72,
+          },
+        ]}
+      >
         <TouchableOpacity
           style={styles.previewButton}
           onPress={() =>
@@ -210,10 +403,11 @@ export default function PostItemScreen() {
               pathname: '/item-preview',
               params: {
                 title,
-                category,
+                category: categories.join(', '),
                 condition,
                 price,
                 description,
+                location: effectiveLocation,
                 images: JSON.stringify(images),
               },
             })
@@ -221,150 +415,354 @@ export default function PostItemScreen() {
         >
           <Text style={styles.previewButtonText}>Preview</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity style={styles.postButton} onPress={handlePostItem}>
-          <Text style={styles.postButtonText}>Post Item</Text>
+        <TouchableOpacity style={styles.actionPostButton} onPress={handlePostItem}>
+          <Text style={styles.actionPostButtonText}>Post Item</Text>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  scrollView: { flex: 1 },
-  section: { padding: 20, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  sectionTitle: { fontSize: 18, fontWeight: '600', color: '#111827', marginBottom: 4 },
-  sectionSubtitle: { fontSize: 14, color: '#6B7280', marginBottom: 16 },
-  photosContainer: { flexDirection: 'row' },
-  photoItem: { position: 'relative', marginRight: 12 },
-  photoPlaceholder: {
-    width: 100,
-    height: 100,
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    backgroundColor: COLORS.white,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  backButton: {
+    padding: 4,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  postButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  postButtonDisabled: {
+    backgroundColor: '#D1D5DB',
+  },
+  postButtonText: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  required: {
+    fontSize: 12,
+    color: COLORS.primary,
+    marginLeft: 4,
+  },
+  photoCount: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginLeft: 4,
+  },
+  photoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  photoItem: {
+    position: 'relative',
+    width: '23%',
+  },
+  photoPreview: {
+    width: '100%',
+    aspectRatio: 1,
     backgroundColor: '#F3F4F6',
-    borderRadius: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: COLORS.border,
+  },
+  photoEmoji: {
+    fontSize: 24,
   },
   removePhotoButton: {
     position: 'absolute',
-    top: -8,
-    right: -8,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: COLORS.primary,
+    top: -6,
+    right: -6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#111827',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  coverBadge: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  coverText: {
+    color: COLORS.white,
+    fontSize: 9,
+    fontWeight: '700',
   },
   addPhotoButton: {
-    width: 100,
-    height: 100,
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
+    width: '23%',
+    aspectRatio: 1,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: COLORS.border,
-    borderStyle: 'dashed',
+    gap: 4,
   },
-  addPhotoText: { fontSize: 12, color: '#6B7280', marginTop: 8 },
-  label: { fontSize: 16, fontWeight: '600', color: '#111827', marginBottom: 8 },
+  addPhotoText: {
+    fontSize: 10,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
   input: {
-    backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: '#D1D5DB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: '#374151',
-  },
-  picker: {
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#111827',
     backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
   },
-  pickerText: { fontSize: 16, color: '#374151' },
-  pickerPlaceholder: { fontSize: 16, color: '#9CA3AF' },
-  pickerOptions: {
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
-    marginTop: 8,
-    overflow: 'hidden',
+  charCount: {
+    textAlign: 'right',
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 4,
   },
-  pickerOption: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  pickerOptionText: { fontSize: 16, color: '#374151' },
   priceInput: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: '#D1D5DB',
-    borderRadius: 12,
-    paddingLeft: 16,
+    borderRadius: 8,
+    paddingLeft: 12,
+    backgroundColor: COLORS.white,
   },
-  currencySymbol: { fontSize: 20, fontWeight: '600', color: '#111827', marginRight: 8 },
-  priceInputField: { flex: 1, paddingVertical: 14, paddingRight: 16, fontSize: 16, color: '#374151' },
-  textarea: {
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
+  currencySymbol: {
+    fontSize: 18,
+    fontWeight: '600',
     color: '#374151',
-    minHeight: 120,
+    marginRight: 4,
   },
-  charCount: { textAlign: 'right', fontSize: 12, color: '#9CA3AF', marginTop: 8 },
+  priceField: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingRight: 12,
+    fontSize: 15,
+    color: '#111827',
+  },
+  chipContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: COLORS.white,
+  },
+  chipActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  chipTextActive: {
+    color: COLORS.white,
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    backgroundColor: COLORS.white,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#111827',
+  },
+  clearButton: {
+    padding: 4,
+  },
+  locationDropdown: {
+    marginTop: 4,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    maxHeight: 192,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  locationList: {
+    flex: 1,
+  },
+  locationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  locationText: {
+    fontSize: 14,
+    color: '#111827',
+  },
+  noLocations: {
+    textAlign: 'center',
+    paddingVertical: 16,
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  selectedLocation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+  },
+  selectedLocationText: {
+    fontSize: 14,
+    color: '#10B981',
+    fontWeight: '500',
+  },
+  textarea: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#111827',
+    minHeight: 120,
+    backgroundColor: COLORS.white,
+  },
+  infoBanner: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 12,
+    padding: 14,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  infoEmoji: {
+    fontSize: 18,
+  },
+  infoContent: {
+    flex: 1,
+  },
+  infoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1E40AF',
+    marginBottom: 4,
+  },
+  infoText: {
+    fontSize: 12,
+    color: '#1E40AF',
+    lineHeight: 18,
+  },
   bottomActions: {
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
     flexDirection: 'row',
-    padding: 16,
-    backgroundColor: COLORS.white,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
     gap: 12,
+    paddingHorizontal: 16,
+    zIndex: 10,
+    elevation: 6,
   },
   previewButton: {
     flex: 1,
-    height: 56,
-    borderRadius: 28,
+    height: 50,
+    borderRadius: 25,
     borderWidth: 2,
     borderColor: COLORS.primary,
-    justifyContent: 'center',
+    backgroundColor: COLORS.white,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  previewButtonText: { color: COLORS.primary, fontSize: 16, fontWeight: '600' },
-  postButton: {
+  previewButtonText: {
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
+  actionPostButton: {
     flex: 1,
-    height: 56,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: COLORS.primary,
-    borderRadius: 28,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  postButtonText: { color: COLORS.white, fontSize: 16, fontWeight: '600' },
+  actionPostButtonText: {
+    color: COLORS.white,
+    fontWeight: '700',
+  },
 });
