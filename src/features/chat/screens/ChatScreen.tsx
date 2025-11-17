@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { Feather as Icon } from '@expo/vector-icons';
 import { COLORS } from '../../../theme/colors';
 import { MOCK_MESSAGES } from '../mock/messages';
+import { usePullToRefresh } from '../../../hooks/usePullToRefresh';
 
 // Mock messages moved to ../mock/messages
 
@@ -22,6 +23,28 @@ export default function ChatScreen() {
   
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState(MOCK_MESSAGES);
+
+  const handleRefreshMessages = useCallback(() => {
+    return new Promise<void>((resolve) => {
+      setTimeout(() => {
+        setMessages((prev) => {
+          const incoming = {
+            id: Date.now(),
+            text: 'New replies synced from server.',
+            sender: 'other' as const,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          };
+          return [incoming, ...prev].slice(0, 60);
+        });
+        resolve();
+      }, 600);
+    });
+  }, []);
+
+  const messageRefresh = usePullToRefresh({
+    onRefresh: handleRefreshMessages,
+    indicatorOffset: 4,
+  });
 
   const sendMessage = () => {
     if (message.trim()) {
@@ -87,13 +110,24 @@ export default function ChatScreen() {
       </View>
 
       {/* Messages */}
-      <FlatList
-        data={messages}
-        renderItem={renderMessage}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.messagesContainer}
-        inverted={false}
-      />
+      <View style={styles.messagesWrapper}>
+        {messageRefresh.indicator}
+        <FlatList
+          data={messages}
+          renderItem={renderMessage}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={[
+            styles.messagesContainer,
+            { paddingTop: messageRefresh.listPaddingTop + 16 },
+          ]}
+          onScroll={messageRefresh.onScroll}
+          onScrollEndDrag={messageRefresh.onRelease}
+          onMomentumScrollEnd={messageRefresh.onRelease}
+          scrollEventThrottle={16}
+          inverted={false}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
 
       {/* Input */}
       <View style={styles.inputContainer}>
@@ -152,8 +186,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
   },
+  messagesWrapper: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
   messagesContainer: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   messageContainer: {
     marginBottom: 16,
