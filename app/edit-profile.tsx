@@ -1,5 +1,6 @@
-import UnderConstruction from '../src/components/UnderConstruction';
+// app/edit-profile.tsx
+import EditProfileScreen from '../src/components/EditProfileScreen';
 
-export default function EditProfileScreen() {
-  return <UnderConstruction title="Edit profile screen coming soon" />;
+export default function EditProfileRoute() {
+  return <EditProfileScreen />;
 }
