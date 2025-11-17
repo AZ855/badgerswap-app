@@ -1,4 +1,11 @@
-export type Category = 'books' | 'electronics' | 'furniture' | 'clothing' | 'other';
+export type Category =
+  | 'books'
+  | 'electronics'
+  | 'furniture'
+  | 'clothing'
+  | 'sports'
+  | 'kitchen'
+  | 'other';
 
 export interface Item {
   id: string;
@@ -6,13 +13,13 @@ export interface Item {
   price: number; // USD
   condition: 'New' | 'Like New' | 'Excellent' | 'Good' | 'Fair';
   category: Category;
-  imageUrl?: string | null; // placeholder
+  imageUrls: string[];
+  coverImageUrl?: string | null;
   location: string;
-  postedAt: string;
+  postedAt: string; // ISO string
   sellerId: string;
   // Optional detail fields used on the item detail screen
   description?: string;
-  images?: (string | null)[];
   seller?: {
     name: string;
     verified: boolean;

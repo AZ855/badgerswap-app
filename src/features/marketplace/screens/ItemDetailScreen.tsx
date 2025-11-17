@@ -1,63 +1,88 @@
-import { Feather } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated,
-  Dimensions,
-  Image,
-  ScrollView,
-  StyleSheet,
+  View,
   Text,
   TouchableOpacity,
-  View,
+  ScrollView,
+  StyleSheet,
+  Dimensions,
+  Image,
+  Animated,
+  ActivityIndicator,
 } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../../../theme/colors';
-import { getItemById } from '../mock/listings';
+import { db, doc, onSnapshot } from '../../../lib/firebase';
+import type { Item } from '../types';
+import { mapListingFromDoc } from '../useListings';
 
 const { width } = Dimensions.get('window');
 
 export default function ItemDetailScreen() {
   const params = useLocalSearchParams<{ itemId?: string }>();
+  const itemId = typeof params.itemId === 'string' ? params.itemId : '';
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isSaved, setIsSaved] = useState(false);
+  const [item, setItem] = useState<Item | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Get item details from mock listings based on route param
-  const itemId = params.itemId ?? '1';
-  const data = getItemById(itemId);
+  useEffect(() => {
+    if (!itemId) {
+      setError('Listing not found.');
+      setLoading(false);
+      return;
+    }
 
-  // Build a view model with safe fallbacks
-  const item = {
-    title: data?.title ?? 'Item',
-    price: data?.price ?? 0,
-    condition: data?.condition ?? 'Good',
-    description:
-      data?.description ??
-      'No description provided.',
-    images: data?.images && data.images.length > 0 ? data.images : [null],
-    seller: data?.seller ?? {
-      name: 'Chenchen Zheng',
-      verified: true,
-      rating: 4.8,
-    },
-    category: (data?.category ?? 'other').replace(/^(\w)/, (m) => m.toUpperCase()),
-    postedDate:
-      data?.postedDate ?? formatTimeAgo(data?.postedAt ?? new Date().toISOString()),
-  };
+    const ref = doc(db, 'listings', itemId);
+    const unsubscribe = onSnapshot(
+      ref,
+      (snap) => {
+        if (!snap.exists()) {
+          setItem(null);
+          setError('Listing not found.');
+        } else {
+          type ListingDocData = Parameters<typeof mapListingFromDoc>[1];
+          const data = snap.data() as ListingDocData;
+          setItem(mapListingFromDoc(snap.id, data));
+          setError(null);
+        }
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Failed to load listing:', err);
+        setError(err?.message ?? 'Failed to load listing.');
+        setLoading(false);
+      }
+    );
 
-  const images = item.images.length > 0 ? item.images : [null];
+    return unsubscribe;
+  }, [itemId]);
+
+  const images = item?.imageUrls?.length ? item.imageUrls : [null];
 
   const MAX_NAME_CHARS = 11; // Target length equal to "Johnny Hong"
   const truncateName = (name: string, max: number) =>
     name.length > max ? `${name.slice(0, Math.max(0, max - 3))}...` : name;
-  const displaySellerName = truncateName(item.seller.name, MAX_NAME_CHARS);
+  const sellerName = truncateName(item?.seller?.name ?? 'Seller', MAX_NAME_CHARS);
+  const postedDate =
+    item?.postedAt != null ? formatTimeAgo(item.postedAt) : 'Just now';
 
-  function formatTimeAgo(iso: string) {
-    const mins = Math.max(1, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
-    if (mins < 60) return `${mins} minutes ago`;
-    const h = Math.floor(mins / 60);
-    if (h < 24) return `${h} hours ago`;
-    const d = Math.floor(h / 24);
-    return `${d} days ago`;
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
+
+  if (!item || error) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <Text style={{ color: '#6B7280' }}>{error ?? 'Listing not found.'}</Text>
+      </View>
+    );
   }
 
   return (
@@ -82,13 +107,13 @@ export default function ItemDetailScreen() {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.price}>${item.price}</Text>
+          <Text style={styles.price}>${item.price.toFixed(2)}</Text>
           
           <View style={styles.metaContainer}>
             <View style={styles.conditionBadge}>
               <Text style={styles.conditionText}>{item.condition}</Text>
             </View>
-            <Text style={styles.postedDate}>{item.postedDate}</Text>
+            <Text style={styles.postedDate}>{postedDate}</Text>
           </View>
 
           {/* Seller Info */}
@@ -96,15 +121,20 @@ export default function ItemDetailScreen() {
             <View style={styles.sellerLeft}>
               <View style={styles.sellerAvatar}>
                 <Text style={styles.sellerAvatarText}>
-                  {item.seller.name.split(' ').map(n => n[0]).join('')}
+                  {sellerName
+                    .split(' ')
+                    .map((n) => n[0])
+                    .join('')
+                    .slice(0, 2)
+                    .toUpperCase()}
                 </Text>
               </View>
               <View>
                 <View style={styles.sellerNameContainer}>
                   <Text style={styles.sellerName} numberOfLines={1} ellipsizeMode="clip">
-                    {displaySellerName}
+                    {sellerName}
                   </Text>
-                  {item.seller.verified && (
+                  {item.seller?.verified && (
                     <View style={{ marginLeft: 6, flexShrink: 0 }}>
                       <Feather name="check-circle" size={16} color={COLORS.primary} />
                     </View>
@@ -112,7 +142,9 @@ export default function ItemDetailScreen() {
                 </View>
                 <View style={styles.ratingContainer}>
                   <Feather name="star" size={14} color="#F59E0B" />
-                  <Text style={styles.rating}>{item.seller.rating}</Text>
+                  <Text style={styles.rating}>
+                    {item.seller?.rating ? item.seller.rating.toFixed(1) : 'New Seller'}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -124,7 +156,7 @@ export default function ItemDetailScreen() {
           {/* Description */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Description</Text>
-            <Text style={styles.description}>{item.description}</Text>
+            <Text style={styles.description}>{item.description ?? 'No description provided.'}</Text>
           </View>
 
           {/* Report Button */}
@@ -153,8 +185,8 @@ export default function ItemDetailScreen() {
           onPress={() => router.push({ 
             pathname: '/chat', 
             params: { 
-              userId: 'seller123',
-              userName: item.seller.name 
+              userId: item.sellerId,
+              userName: sellerName 
             } 
           })}
         >
@@ -164,6 +196,15 @@ export default function ItemDetailScreen() {
       </View>
     </View>
   );
+}
+
+function formatTimeAgo(iso: string) {
+  const mins = Math.max(1, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 60) return `${mins} minutes ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} hours ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} days ago`;
 }
 
 function Carousel({ images, currentIndex, setIndex }: { images: (string | null)[]; currentIndex: number; setIndex: (i: number) => void; }) {
@@ -249,6 +290,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  center: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   imageContainer: {
     width: width,
