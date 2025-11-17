@@ -23,7 +23,7 @@ export default function EditProfileScreen() {
   const [initialDisplayName, setInitialDisplayName] = useState('');
   const [saving, setSaving] = useState(false);
 
-  
+  // Load the user's current profile info
   useEffect(() => {
     if (user) {
       const name = user.displayName ?? '';
@@ -32,6 +32,7 @@ export default function EditProfileScreen() {
     }
   }, [user]);
 
+  // Handle saving updated profile info
   const handleSave = async () => {
     if (!user) {
       Alert.alert('Not signed in', 'Please sign in to edit your profile.');
@@ -44,6 +45,7 @@ export default function EditProfileScreen() {
       return;
     }
 
+    // If nothing changed, simply go back
     if (trimmed === initialDisplayName) {
       router.back();
       return;
@@ -52,8 +54,10 @@ export default function EditProfileScreen() {
     try {
       setSaving(true);
 
+      // Update Firebase Auth display name
       await updateProfile(user, { displayName: trimmed });
 
+      // Update Firestore user document
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, { displayName: trimmed });
 
@@ -68,6 +72,7 @@ export default function EditProfileScreen() {
     }
   };
 
+  // Loading state while auth is initializing
   if (loading) {
     return (
       <View style={styles.center}>
@@ -76,6 +81,7 @@ export default function EditProfileScreen() {
     );
   }
 
+  // If user is not logged in
   if (!user) {
     return (
       <View style={styles.center}>
@@ -97,6 +103,7 @@ export default function EditProfileScreen() {
           Update how your name appears to other BadgerSwap users.
         </Text>
 
+        {/* Display name input */}
         <View style={styles.fieldGroup}>
           <Text style={styles.label}>Display name</Text>
           <TextInput
@@ -109,6 +116,7 @@ export default function EditProfileScreen() {
           />
         </View>
 
+        {/* Email is read-only */}
         <View style={styles.fieldGroup}>
           <Text style={styles.label}>Email</Text>
           <View style={[styles.input, styles.inputDisabled]}>
@@ -116,6 +124,7 @@ export default function EditProfileScreen() {
           </View>
         </View>
 
+        {/* Action buttons */}
         <View style={styles.buttonRow}>
           <TouchableOpacity
             style={[styles.button, styles.secondaryButton]}

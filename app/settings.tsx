@@ -1,7 +1,7 @@
 // app/settings.tsx
 import { Feather } from '@expo/vector-icons';
-import { Link, router, type Href } from 'expo-router';
-import React from 'react';
+import { Link, router } from 'expo-router';
+import React, { useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -14,18 +14,16 @@ import {
 import { signOutUW } from '../src/features/auth/api';
 import { COLORS } from '../src/theme/colors';
 
-// ----------------------
-// Row Component
-// ----------------------
 type RowProps = {
   icon: React.ComponentProps<typeof Feather>['name'];
   title: string;
   subtitle?: string;
-  href?: Href;
+  href?: string;
   onPress?: () => void;
   right?: React.ReactNode;
 };
 
+// Generic settings row component
 function Row({ icon, title, subtitle, href, onPress, right }: RowProps) {
   const content = (
     <View style={styles.rowInner}>
@@ -41,9 +39,10 @@ function Row({ icon, title, subtitle, href, onPress, right }: RowProps) {
     </View>
   );
 
+  // Link row if href is provided
   if (href) {
     return (
-      <Link href={href} asChild>
+      <Link href={href as any} asChild>
         <TouchableOpacity style={styles.row}>{content}</TouchableOpacity>
       </Link>
     );
@@ -56,20 +55,27 @@ function Row({ icon, title, subtitle, href, onPress, right }: RowProps) {
   );
 }
 
-// ----------------------
-// Settings Screen
-// ----------------------
 export default function SettingsScreen() {
-  const [search, setSearch] = React.useState('');
+  const [search, setSearch] = useState('');
 
-  async function handleLogout() {
-    try {
-      await signOutUW();
-      router.replace('/login');
-    } catch (err: any) {
-      Alert.alert('Logout failed', err?.message ?? 'Please try again.');
-    }
-  }
+  // Confirm logout
+  const handleLogout = () => {
+    Alert.alert('Log out', 'Are you sure you want to log out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log out',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await signOutUW();
+            router.replace('/login');
+          } catch (err: any) {
+            Alert.alert('Logout failed', err?.message ?? 'Please try again.');
+          }
+        },
+      },
+    ]);
+  };
 
   return (
     <ScrollView style={styles.container}>
@@ -79,42 +85,21 @@ export default function SettingsScreen() {
         <TextInput
           style={styles.searchInput}
           placeholder="Search settings"
+          placeholderTextColor="#9CA3AF"
           value={search}
           onChangeText={setSearch}
-          placeholderTextColor="#9CA3AF"
         />
       </View>
 
-      {/* Account section */}
+      {/* Profile section */}
       <Text style={styles.sectionLabel}>ACCOUNT</Text>
-      <Row
-        icon="user"
-        title="Edit profile"
-        subtitle="Name, photo, bio"
-        href="/edit-profile"
-      />
-      <Row
-        icon="shield"
-        title="Privacy"
-        subtitle="Profile visibility"
-        onPress={() => Alert.alert('Coming soon')}
-      />
+      <Row icon="user" title="View profile" href="/profile" />
+      <Row icon="edit-3" title="Edit profile" href="/edit-profile" />
 
       {/* App section */}
       <Text style={styles.sectionLabel}>APP</Text>
-      <Row
-        icon="bell"
-        title="Notifications"
-        subtitle="Push & email alerts"
-        onPress={() => Alert.alert('Coming soon')}
-      />
-
-      <Row
-        icon="info"
-        title="About BadgerSwap"
-        subtitle="Version 1.0"
-        onPress={() => Alert.alert('BadgerSwap', 'A marketplace for UW students.')}
-      />
+      <Row icon="bell" title="Notifications" onPress={() => Alert.alert('Coming soon')} />
+      <Row icon="info" title="About BadgerSwap" onPress={() => Alert.alert('Coming soon')} />
 
       {/* Session section */}
       <Text style={styles.sectionLabel}>SESSION</Text>
@@ -125,9 +110,6 @@ export default function SettingsScreen() {
   );
 }
 
-// ----------------------
-// Styles
-// ----------------------
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -138,8 +120,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: COLORS.white,
     borderRadius: 10,
-    marginHorizontal: 16,
-    marginTop: 16,
+    margin: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 1,
