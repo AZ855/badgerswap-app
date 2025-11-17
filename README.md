@@ -109,10 +109,10 @@ Each member commits only to their own branch during development and merges on mi
 
 | **Milestone** | **Date** | **Goal** | **Role A** | **Role B** | **Role C** | **Role D** |
 |---------------|-----------|-----------|---------------|---------------|---------------|---------------|
-| **Oct 27** | Authentication + Marketplace Prototype | Users can register/login with UW email and browse mock listings; navigation Login → Marketplace → Item → Chat | **Login & Register UI** – UW email validation, mock login | **Marketplace (Home)** – search, categories, item grid with mock data | **Item Detail UI** – image, price, description, favorite button | **Chat UI** – message list + chat screen with mock threads |
-| **Nov 10** | Posting + Listing Enhancement | Enable posting items + favorites + profile UI; still local/mock data | **Register & Profile UI** (local user storage, profile header) | **Post Item Screen** – full form + preview, local posting flow | **Listings & Favorites UI** – Profile tabs + toggle favorites | **Message List Enhancements** – search + thread previews |
-| **Nov 24** | **Backend Foundations + Profile Integration (Revised)** | Begin Firebase integration; connect core features to backend | **Firebase Auth Setup** – email/password login + user document + AuthContext | **Firestore Listings Integration** – Post Item writes to Firestore; Marketplace reads listings | **My Listings (Firestore)** – fetch user’s listings; Item Detail fetches by ID | **Chat Backend Schema** – create/find chat doc on “Message Seller”; prepare message structure |
-| **Dec 8** | Final Demo & Full Backend Integration | Connect all screens to backend and polish UI | **Auth API Finalization** – persisted login; sync profile edits | **Marketplace API** – search/filter with backend; image upload | **Favorites/MyListings API** – backend favorites + listing updates | **Chat API** – real-time messages, unread badges, message send states |
+| **Oct 27** | Authentication + Marketplace Prototype | Users can register/login with UW email and browse mock listings; navigation Login → Marketplace → Item → Chat | **Login & Register UI** – UW email validation, mock login | **Marketplace (Home)** – search bar, categories, mock item grid | **Item Detail UI** – image carousel, price, description, favorite toggle UI | **Chat UI** – chat list + message screen (mock data) |
+| **Nov 10** | Posting + Listing Enhancement | Enable posting items + favorites + profile UI; still mock/local data | **Settings Screen (New)** – Settings UI, logout trigger, preferences placeholders | **Post Item Screen (UI + Logic)** – full listing form + preview, multi-image picker, campus location selector **+ Backend Work:** Cloudinary upload integration, secure `.env`, type-safe Item model, Firebase Firestore listing write, Firebase service structure, marketplace backend fetch replacing mock data | **Profile UI + Favorites** – Profile header (done), Profile tabs, favorites tab logic, logout implementation | **Chat Enhancements** – message search, thread previews, improved navigation from item → chat |
+| **Nov 24** | **Backend Foundations + Profile Integration** | Begin Firebase integration; connect core features to backend | **Firebase Auth Foundation** – email/password auth, user document creation, AuthContext state mgmt | **Backend Marketplace Integration** – query Firestore listings, pagination, search, category filters | **My Listings (Firestore)** – fetch user’s listings; Item Detail fetches full listing data from backend | **Chat Backend Schema** – create/find chat thread doc on “Message Seller”; message structure defined |
+| **Dec 8** | Final Demo & Full Backend Integration | Connect all screens to backend and polish UI | **Auth Finalization** – persisted login, profile edit sync, secure user state | **Marketplace API Finalization** – image upload pipeline, listing search, full backend filtering | **Favorites/MyListings API** – backend favorites, listing updates, unified profile data | **Real-Time Chat API** – Firestore/RTDB chat sync, unread badges, delivery states, optional push notifications |
 
 
 ---
@@ -121,8 +121,8 @@ Each member commits only to their own branch during development and merges on mi
 | Milestone | Hours / Person | Complexity |
 |------------|----------------|-------------|
 | Oct 27 | 6 – 8 h | UI layout + mock logic |
-| Nov 10 | 7 – 9 h | Form handling + local state |
-| Nov 24 | 6 – 8 h | Profile logic + storage |
+| Nov 10 | 10 – 12 h | Form handling + integrations |
+| Nov 24 | 6 – 8 h | App logic + backend foundation |
 | Dec 8 | 7 – 9 h | Backend integration + polish |
 
 ---
@@ -130,7 +130,7 @@ Each member commits only to their own branch during development and merges on mi
 ### Summary
 Workload and difficulty are evenly distributed among all members.  
 - **Role A – Authentication & User Profiles:** Builds login/register flow, user info editing, and connects authentication to the backend.  
-- **Role B – Marketplace Core:** Designs and codes the main feed, item posting, and marketplace API integration (central part of the app).  
+- **Role B – Marketplace Core & Backend setup:** Designs and codes the main feed, item posting, and marketplace API integration (central part of the app).  
 - **Role C – Item Details & Favorites:** Implements detailed item views, favorites, personal listings, and related backend storage.  
 - **Role D – Messaging & Notifications:** Develops chat interfaces, navigation between screens, and later adds notifications and real-time updates.
 
