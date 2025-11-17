@@ -10,6 +10,7 @@ import {
   type User,
 } from 'firebase/auth';
 import { initializeAuth, getReactNativePersistence } from '@firebase/auth/dist/rn/index.js';
+import { Platform } from 'react-native';
 import {
   addDoc,
   collection,
@@ -40,12 +41,16 @@ const firebaseConfig = {
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 
 let authInstance;
-try {
+if (Platform.OS === 'web') {
   authInstance = getAuth(app);
-} catch {
-  authInstance = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-  });
+} else {
+  try {
+    authInstance = initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
+  } catch {
+    authInstance = getAuth(app);
+  }
 }
 
 export const auth = authInstance;

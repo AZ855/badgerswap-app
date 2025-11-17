@@ -205,18 +205,24 @@ export default function PostItemScreen() {
         })
       );
 
-      const listing = await createListing(
-        {
-          title: title.trim(),
-          price: priceNumber,
-          category,
-          condition: conditionValue,
-          description: description.trim(),
-          location: effectiveLocation,
-          imageUrls: uploadedUrls,
-        },
-        auth.currentUser.uid
-      );
+    const sellerName =
+      auth.currentUser.displayName?.trim() ||
+      auth.currentUser.email?.split('@')[0] ||
+      'BadgerSwap Seller';
+
+    const listing = await createListing(
+      {
+        title: title.trim(),
+        price: priceNumber,
+        category,
+        condition: conditionValue,
+        description: description.trim(),
+        location: effectiveLocation,
+        imageUrls: uploadedUrls,
+        sellerName,
+      },
+      auth.currentUser.uid
+    );
 
       Alert.alert('🎉 Posted!', 'Your item is now live on BadgerSwap marketplace.', [
         {

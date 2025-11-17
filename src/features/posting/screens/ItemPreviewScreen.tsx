@@ -13,6 +13,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Feather as Icon } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../theme/colors';
+import { auth } from '../../../lib/firebase';
 
 const { width } = Dimensions.get('window');
 
@@ -51,6 +52,17 @@ export default function ItemPreviewScreen() {
 
   const images = itemData.images.length > 0 ? itemData.images : [null];
   const bottomInset = Math.max(insets.bottom, 12);
+  const currentUserName =
+    auth.currentUser?.displayName?.trim() ||
+    auth.currentUser?.email?.split('@')[0] ||
+    'You';
+  const currentUserInitials = currentUserName
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <View style={styles.container}>
@@ -115,11 +127,11 @@ export default function ItemPreviewScreen() {
           <View style={styles.sellerCard}>
             <View style={styles.sellerLeft}>
               <View style={styles.sellerAvatar}>
-                <Text style={styles.sellerAvatarText}>You</Text>
+                <Text style={styles.sellerAvatarText}>{currentUserInitials || 'Y'}</Text>
               </View>
               <View>
                 <View style={styles.sellerNameContainer}>
-                  <Text style={styles.sellerName}>Your Name</Text>
+                  <Text style={styles.sellerName}>{currentUserName}</Text>
                   <Icon name="check-circle" size={16} color={COLORS.primary} />
                 </View>
                 <View style={styles.ratingContainer}>

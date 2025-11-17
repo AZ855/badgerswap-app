@@ -17,6 +17,9 @@ type ListingDoc = {
   location?: string;
   condition?: string;
   sellerId?: string;
+  sellerName?: string;
+  sellerVerified?: boolean;
+  sellerRating?: number;
   postedAt?: Timestamp;
   description?: string;
   coverImageUrl?: string;
@@ -80,6 +83,11 @@ export function mapListingFromDoc(id: string, data: ListingDoc): Item {
       ? data.coverImageUrl
       : rawImages[0] ?? null;
 
+  const normalizedSellerName =
+    typeof data.sellerName === 'string' && data.sellerName.trim().length > 0
+      ? data.sellerName.trim()
+      : undefined;
+
   return {
     id,
     title: data.title ?? 'Untitled listing',
@@ -92,5 +100,13 @@ export function mapListingFromDoc(id: string, data: ListingDoc): Item {
     description: data.description,
     imageUrls: rawImages,
     coverImageUrl: coverImage,
+    seller: normalizedSellerName
+      ? {
+          name: normalizedSellerName,
+          verified: Boolean(data.sellerVerified),
+          rating:
+            typeof data.sellerRating === 'number' ? data.sellerRating : 0,
+        }
+      : undefined,
   };
 }

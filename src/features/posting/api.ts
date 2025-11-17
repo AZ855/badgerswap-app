@@ -10,6 +10,7 @@ export interface NewListingInput {
   description: string;
   location: string;
   imageUrls: string[];
+  sellerName: string;
 }
 
 export async function createListing(input: NewListingInput, userId: string): Promise<Item> {
@@ -22,6 +23,7 @@ export async function createListing(input: NewListingInput, userId: string): Pro
     location: input.location,
     imageUrls: input.imageUrls,
     coverImageUrl: input.imageUrls[0] ?? null,
+    sellerName: input.sellerName,
     sellerId: userId,
     postedAt: serverTimestamp(),
   });

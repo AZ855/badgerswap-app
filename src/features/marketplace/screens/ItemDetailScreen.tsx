@@ -65,7 +65,8 @@ export default function ItemDetailScreen() {
   const MAX_NAME_CHARS = 11; // Target length equal to "Johnny Hong"
   const truncateName = (name: string, max: number) =>
     name.length > max ? `${name.slice(0, Math.max(0, max - 3))}...` : name;
-  const sellerName = truncateName(item?.seller?.name ?? 'Seller', MAX_NAME_CHARS);
+  const resolvedSellerName = item?.seller?.name ?? 'Seller';
+  const sellerName = truncateName(resolvedSellerName, MAX_NAME_CHARS);
   const postedDate =
     item?.postedAt != null ? formatTimeAgo(item.postedAt) : 'Just now';
 
@@ -186,7 +187,7 @@ export default function ItemDetailScreen() {
             pathname: '/chat', 
             params: { 
               userId: item.sellerId,
-              userName: sellerName 
+              userName: resolvedSellerName 
             } 
           })}
         >
