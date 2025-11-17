@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  FlatList,
+  Animated,
   StyleSheet,
   Text,
   TextInput,
@@ -136,7 +136,7 @@ export default function MarketplaceScreen() {
             <Text style={{ color: '#6B7280' }}>No items match your search.</Text>
           </View>
         ) : (
-          <FlatList
+          <Animated.FlatList
             key={view}
             data={data}
             keyExtractor={(i) => i.id}
@@ -148,14 +148,10 @@ export default function MarketplaceScreen() {
                 <ItemListCard item={item} />
               )
             }
-            contentContainerStyle={[
-              view === 'grid' ? styles.listContent : styles.listContentList,
-              {
-                paddingTop:
-                  pullRefresh.listPaddingTop +
-                  (view === 'grid' ? 12 : 24),
-              },
-            ]}
+            style={pullRefresh.listStyle}
+            contentContainerStyle={
+              view === 'grid' ? styles.listContent : styles.listContentList
+            }
             columnWrapperStyle={
               view === 'grid' ? styles.gridRow : undefined
             }
