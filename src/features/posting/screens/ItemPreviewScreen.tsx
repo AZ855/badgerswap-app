@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -14,43 +14,54 @@ import { Feather as Icon } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../theme/colors';
 import { auth } from '../../../lib/firebase';
+import type { Category, Item } from '../../marketplace/types';
+import { publishListing, type ListingImageSource } from '../publishListing';
 
 const { width } = Dimensions.get('window');
 
+type PreviewPayload = {
+  title: string;
+  price: string;
+  condition: Item['condition'];
+  description: string;
+  location: string;
+  primaryCategoryId: Category;
+  categoryLabel: string;
+  images: ListingImageSource[];
+};
+
+const DEFAULT_PAYLOAD: PreviewPayload = {
+  title: 'Untitled Item',
+  price: '0',
+  condition: 'Good',
+  description: 'No description provided.',
+  location: 'Madison, WI',
+  primaryCategoryId: 'other',
+  categoryLabel: 'General',
+  images: [],
+};
+
 export default function ItemPreviewScreen() {
-  const params = useLocalSearchParams();
+  const params = useLocalSearchParams<{ payload?: string | string[] }>();
   const insets = useSafeAreaInsets();
+  const [posting, setPosting] = useState(false);
 
-  const itemData = {
-    title: (params.title as string) || 'Untitled Item',
-    price: (params.price as string) || '0',
-    condition: (params.condition as string) || 'Good',
-    description: (params.description as string) || 'No description provided.',
-    category: (params.category as string) || 'General',
-    images: params.images ? safeParseImages(params.images as string) : [],
-  };
+  const payload = useMemo(
+    () => parsePayload(params.payload),
+    [params.payload]
+  );
 
-  const handlePublish = () => {
-    Alert.alert(
-      'Publish Listing',
-      'Are you ready to publish this item to BadgerSwap marketplace?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Publish',
-          onPress: () => {
-            Alert.alert('Success!', 'Your item has been posted to the marketplace.', [
-              { text: 'OK', onPress: () => router.replace('/marketplace') },
-            ]);
-          },
-        },
-      ]
-    );
-  };
+  const previewImages = useMemo(
+    () =>
+      payload.images
+        .map((img) => img.remoteUrl ?? img.localUri)
+        .filter((uri): uri is string => typeof uri === 'string' && uri.length > 0),
+    [payload.images]
+  );
 
   const handleEdit = () => router.back();
 
-  const images = itemData.images.length > 0 ? itemData.images : [null];
+  const images = previewImages.length > 0 ? previewImages : [null];
   const bottomInset = Math.max(insets.bottom, 12);
   const currentUserName =
     auth.currentUser?.displayName?.trim() ||
@@ -63,6 +74,81 @@ export default function ItemPreviewScreen() {
     .join('')
     .slice(0, 2)
     .toUpperCase();
+
+  const numericPrice = useMemo(() => {
+    const value = Number(payload.price);
+    if (Number.isNaN(value)) return payload.price || '0.00';
+    return value.toFixed(2);
+  }, [payload.price]);
+
+  const navigateHome = () => {
+    router.replace('/marketplace');
+  };
+
+  const viewListingAfterHome = (itemId: string) => {
+    navigateHome();
+    setTimeout(() => {
+      router.push({ pathname: '/item-detail', params: { itemId } });
+    }, 60);
+  };
+
+  const publishNow = async () => {
+    if (!auth.currentUser) {
+      Alert.alert('Not signed in', 'Please log in before posting an item.');
+      return;
+    }
+    const priceValue = Number(payload.price);
+    if (Number.isNaN(priceValue)) {
+      Alert.alert('Invalid Price', 'Please return and fix the price before posting.');
+      return;
+    }
+    setPosting(true);
+    try {
+      const listing = await publishListing({
+        title: payload.title,
+        price: priceValue,
+        category: payload.primaryCategoryId,
+        condition: payload.condition,
+        description: payload.description,
+        location: payload.location,
+        images: payload.images,
+        sellerName:
+          auth.currentUser.displayName?.trim() ||
+          auth.currentUser.email?.split('@')[0] ||
+          'BadgerSwap Seller',
+        userId: auth.currentUser.uid,
+      });
+
+      Alert.alert('Posted!', 'Your item is now live on BadgerSwap marketplace.', [
+        {
+          text: 'Back to Marketplace',
+          style: 'cancel',
+          onPress: navigateHome,
+        },
+        {
+          text: 'View Listing',
+          onPress: () => viewListingAfterHome(listing.id),
+        },
+      ]);
+    } catch (err: any) {
+      console.error('Error posting item from preview:', err);
+      Alert.alert('Error', err?.message ?? 'Failed to publish this item.');
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const handlePublish = () => {
+    if (posting) return;
+    Alert.alert(
+      'Publish Listing',
+      'Ready to make this listing visible to everyone?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Publish', style: 'destructive', onPress: () => void publishNow() },
+      ]
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -106,19 +192,19 @@ export default function ItemPreviewScreen() {
         <View style={styles.content}>
           <View style={styles.header}>
             <View style={styles.titleContainer}>
-              <Text style={styles.title}>{itemData.title}</Text>
-              <Text style={styles.category}>{itemData.category}</Text>
+              <Text style={styles.title}>{payload.title}</Text>
+              <Text style={styles.category}>{payload.categoryLabel}</Text>
             </View>
             <View style={{ opacity: 0.5 }}>
               <Icon name="heart" size={24} color="#9CA3AF" />
             </View>
           </View>
 
-          <Text style={styles.price}>${itemData.price}</Text>
+          <Text style={styles.price}>${numericPrice}</Text>
 
           <View style={styles.metaContainer}>
             <View style={styles.conditionBadge}>
-              <Text style={styles.conditionText}>{itemData.condition}</Text>
+              <Text style={styles.conditionText}>{payload.condition}</Text>
             </View>
             <Text style={styles.postedDate}>Just now</Text>
           </View>
@@ -148,7 +234,7 @@ export default function ItemPreviewScreen() {
           {/* Description */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Description</Text>
-            <Text style={styles.description}>{itemData.description}</Text>
+            <Text style={styles.description}>{payload.description}</Text>
           </View>
 
           {/* Info Box */}
@@ -188,21 +274,55 @@ export default function ItemPreviewScreen() {
           <Text style={styles.editButtonText}>Edit</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.publishButton} onPress={handlePublish}>
+        <TouchableOpacity
+          style={[styles.publishButton, posting && { opacity: 0.6 }]}
+          onPress={handlePublish}
+          disabled={posting}
+        >
           <Icon name="check" size={20} color={COLORS.white} />
-          <Text style={styles.publishButtonText}>Publish Listing</Text>
+          <Text style={styles.publishButtonText}>
+            {posting ? 'Publishing...' : 'Publish Listing'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
 
-function safeParseImages(s: string): string[] {
+function parsePayload(raw?: string | string[]): PreviewPayload {
+  const source = Array.isArray(raw) ? raw[0] : raw;
+  if (!source) return DEFAULT_PAYLOAD;
   try {
-    const v = JSON.parse(s);
-    return Array.isArray(v) ? v.filter((uri): uri is string => typeof uri === 'string') : [];
-  } catch {
-    return [];
+    const parsed = JSON.parse(source);
+    const images: ListingImageSource[] = Array.isArray(parsed.images)
+      ? parsed.images
+          .map((img: any) => ({
+            localUri: typeof img?.localUri === 'string' ? img.localUri : null,
+            remoteUrl: typeof img?.remoteUrl === 'string' ? img.remoteUrl : null,
+          }))
+          .filter((img) => img.localUri || img.remoteUrl)
+      : [];
+
+    return {
+      title: typeof parsed.title === 'string' && parsed.title.length > 0 ? parsed.title : DEFAULT_PAYLOAD.title,
+      price: typeof parsed.price === 'string' ? parsed.price : String(parsed.price ?? DEFAULT_PAYLOAD.price),
+      condition: (parsed.condition as Item['condition']) ?? DEFAULT_PAYLOAD.condition,
+      description:
+        typeof parsed.description === 'string' && parsed.description.length > 0
+          ? parsed.description
+          : DEFAULT_PAYLOAD.description,
+      location:
+        typeof parsed.location === 'string' && parsed.location.length > 0 ? parsed.location : DEFAULT_PAYLOAD.location,
+      primaryCategoryId: (parsed.primaryCategoryId as Category) ?? DEFAULT_PAYLOAD.primaryCategoryId,
+      categoryLabel:
+        typeof parsed.categoryLabel === 'string' && parsed.categoryLabel.length > 0
+          ? parsed.categoryLabel
+          : DEFAULT_PAYLOAD.categoryLabel,
+      images,
+    };
+  } catch (err) {
+    console.error('Failed to parse preview payload', err);
+    return DEFAULT_PAYLOAD;
   }
 }
 

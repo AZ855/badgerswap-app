@@ -17,8 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { auth } from '../../../lib/firebase';
 import { COLORS } from '../../../theme/colors';
 import type { Category, Item } from '../../marketplace/types';
-import { createListing } from '../api';
-import { uploadImageAsync } from '../cloudinary';
+import { publishListing, type ListingImageSource } from '../publishListing';
 
 const CATEGORIES = [
   { id: 'books', name: 'Books', icon: 'book' },
@@ -159,92 +158,119 @@ export default function PostItemScreen() {
     ]);
   };
 
-  const handlePostItem = async () => {
+  const ensureFormReady = () => {
     if (!title.trim()) {
       Alert.alert('Missing Info', 'Please enter a title');
-      return;
+      return false;
     }
     if (categories.length === 0) {
       Alert.alert('Missing Info', 'Please select a category');
-      return;
+      return false;
     }
     if (!condition) {
       Alert.alert('Missing Info', 'Please select item condition');
-      return;
+      return false;
     }
     if (!price.trim() || isNaN(Number(price))) {
       Alert.alert('Invalid Price', 'Please enter a valid price');
-      return;
+      return false;
     }
     if (!description.trim()) {
       Alert.alert('Missing Info', 'Please add a description');
-      return;
+      return false;
     }
     if (images.length === 0) {
       Alert.alert('Missing Photos', 'Please add at least one photo');
-      return;
+      return false;
     }
     if (!effectiveLocation) {
       Alert.alert('Missing Info', 'Please select a pickup location');
-      return;
+      return false;
     }
+    if (!auth.currentUser) {
+      Alert.alert('Not signed in', 'Please log in before posting an item.');
+      return false;
+    }
+    return true;
+  };
+
+  const resetForm = () => {
+    setTitle('');
+    setCategories([]);
+    setCondition('');
+    setPrice('');
+    setDescription('');
+    setImages([]);
+    setLocation('');
+    setLocationSearch('');
+  };
+
+  const navigateHome = () => {
+    router.replace('/marketplace');
+  };
+
+  const viewListingAfterHome = (itemId: string) => {
+    navigateHome();
+    setTimeout(() => {
+      router.push({ pathname: '/item-detail', params: { itemId } });
+    }, 60);
+  };
+
+  const publishNow = async () => {
     if (!auth.currentUser) {
       Alert.alert('Not signed in', 'Please log in before posting an item.');
       return;
     }
-
     setPosting(true);
     try {
-      const category = (categories[0] ?? 'other') as Category;
-      const priceNumber = Number(price);
-      const conditionValue = condition as Item['condition'];
-      const uploadedUrls = await Promise.all(
-        images.map(async (img) => {
-          if (img.remoteUrl) return img.remoteUrl;
-          return uploadImageAsync(img.localUri);
-        })
-      );
-
-    const sellerName =
-      auth.currentUser.displayName?.trim() ||
-      auth.currentUser.email?.split('@')[0] ||
-      'BadgerSwap Seller';
-
-    const listing = await createListing(
-      {
+      const listing = await publishListing({
         title: title.trim(),
-        price: priceNumber,
-        category,
-        condition: conditionValue,
+        price: Number(price),
+        category: (categories[0] ?? 'other') as Category,
+        condition: condition as Item['condition'],
         description: description.trim(),
         location: effectiveLocation,
-        imageUrls: uploadedUrls,
-        sellerName,
-      },
-      auth.currentUser.uid
-    );
+        images: images.map<ListingImageSource>((img) => ({
+          localUri: img.localUri,
+          remoteUrl: img.remoteUrl,
+        })),
+        sellerName:
+          auth.currentUser.displayName?.trim() ||
+          auth.currentUser.email?.split('@')[0] ||
+          'BadgerSwap Seller',
+        userId: auth.currentUser.uid,
+      });
 
-      Alert.alert('🎉 Posted!', 'Your item is now live on BadgerSwap marketplace.', [
+      resetForm();
+      Alert.alert('Posted!', 'Your item is now live on BadgerSwap marketplace.', [
+        {
+          text: 'Back to Marketplace',
+          style: 'cancel',
+          onPress: navigateHome,
+        },
         {
           text: 'View Listing',
-          onPress: () => router.push({ pathname: '/item-detail', params: { itemId: listing.id } }),
+          onPress: () => viewListingAfterHome(listing.id),
         },
       ]);
-
-      setTitle('');
-      setCategories([]);
-      setCondition('');
-      setPrice('');
-      setDescription('');
-      setImages([]);
-      setLocation('');
-      setLocationSearch('');
     } catch (err: any) {
       console.error('Error posting item:', err);
       Alert.alert('Error', err?.message ?? 'Failed to post item.');
     } finally {
       setPosting(false);
     }
+  };
+
+  const handlePostItem = () => {
+    if (!ensureFormReady()) return;
+    Alert.alert(
+      'Publish Listing',
+      'Double-check your title, price, location, and photos before going live.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Post Item', style: 'destructive', onPress: () => void publishNow() },
+      ]
+    );
   };
 
   return (
@@ -534,20 +560,34 @@ export default function PostItemScreen() {
         <TouchableOpacity
           style={styles.previewButton}
           disabled={posting}
-          onPress={() =>
+          onPress={() => {
+            if (!ensureFormReady()) return;
+            const primaryCategory = (categories[0] ?? 'other') as Category;
+            const categoryLabel = categories.length
+              ? CATEGORIES.filter((cat) => categories.includes(cat.id))
+                  .map((cat) => cat.name)
+                  .join(', ')
+              : 'General';
+            const payload = {
+              title: title.trim(),
+              price,
+              condition,
+              description: description.trim(),
+              location: effectiveLocation,
+              primaryCategoryId: primaryCategory,
+              categoryLabel,
+              images: images.map<ListingImageSource>((img) => ({
+                localUri: img.localUri,
+                remoteUrl: img.remoteUrl ?? null,
+              })),
+            };
             router.push({
               pathname: '/item-preview',
               params: {
-                title,
-                category: categories.join(', '),
-                condition,
-                price,
-                description,
-                location: effectiveLocation,
-                images: JSON.stringify(images.map((img) => img.localUri)),
+                payload: JSON.stringify(payload),
               },
-            })
-          }
+            });
+          }}
         >
           <Text style={styles.previewButtonText}>Preview</Text>
         </TouchableOpacity>
@@ -557,7 +597,7 @@ export default function PostItemScreen() {
           disabled={posting}
         >
           <Text style={styles.actionPostButtonText}>
-            {posting ? 'Posting…' : 'Post Item'}
+            {posting ? 'Posting...' : 'Post Item'}
           </Text>
         </TouchableOpacity>
       </Animated.View>
