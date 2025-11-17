@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, StyleSheet, Text } from 'react-native';
+import { Animated, Easing, StyleSheet, Text } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { COLORS } from '../theme/colors';
 
-const THRESHOLD = 90;
-const INDICATOR_HEIGHT = 68;
+const THRESHOLD = 80;
+const PINNED_HEIGHT = 56;
+const MAX_PULL_DISTANCE = THRESHOLD * 1.6;
+const RUBBER_BAND_COEFF = 55;
+const COLLAPSE_EASING = Easing.bezier(0.2, 0.9, 0.2, 1);
 
 interface UsePullToRefreshOptions {
   onRefresh: () => Promise<void> | void;
@@ -14,41 +17,94 @@ interface UsePullToRefreshOptions {
 export function usePullToRefresh(options: UsePullToRefreshOptions) {
   const { onRefresh, indicatorOffset = 12 } = options;
   const pullDistance = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+  const spinnerRotation = useRef(new Animated.Value(0)).current;
+  const spinnerLoop = useRef<Animated.CompositeAnimation | null>(null);
   const [pulling, setPulling] = useState(false);
   const [thresholdReached, setThresholdReached] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [indicatorLocked, setIndicatorLocked] = useState(false);
-  const [listPaddingTop, setListPaddingTop] = useState(0);
+
   const indicatorVisible = pulling || refreshing || indicatorLocked;
+  const spinnerRotate = spinnerRotation.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
   useEffect(() => {
-    const sub = pullDistance.addListener(({ value }) => {
-      const padding = Math.min(Math.max(value, 0), INDICATOR_HEIGHT);
-      setListPaddingTop(padding);
-    });
+    if (refreshing) {
+      spinnerLoop.current?.stop();
+      spinnerRotation.setValue(0);
+      spinnerLoop.current = Animated.loop(
+        Animated.timing(spinnerRotation, {
+          toValue: 1,
+          duration: 300,
+          easing: Easing.linear,
+          useNativeDriver: false,
+        })
+      );
+      spinnerLoop.current.start();
+    } else {
+      spinnerLoop.current?.stop();
+    }
     return () => {
-      pullDistance.removeListener(sub);
+      spinnerLoop.current?.stop();
     };
-  }, [pullDistance]);
+  }, [refreshing, spinnerRotation]);
 
-  const resetIndicator = useCallback(() => {
-    Animated.timing(pullDistance, {
-      toValue: 0,
-      duration: 150,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: false,
-    }).start(() => {
-      setPulling(false);
-      setIndicatorLocked(false);
-      setThresholdReached(false);
-    });
-  }, [pullDistance]);
+  const rubberBand = useCallback((distance: number) => {
+    const clamped = Math.min(MAX_PULL_DISTANCE, Math.max(0, distance));
+    return RUBBER_BAND_COEFF * (1 - Math.exp(-clamped / RUBBER_BAND_COEFF));
+  }, []);
+
+  const collapseToOrigin = useCallback(
+    (onEnd?: () => void) => {
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: 0,
+          duration: 220,
+          easing: COLLAPSE_EASING,
+          useNativeDriver: false,
+        }),
+        Animated.timing(pullDistance, {
+          toValue: 0,
+          duration: 220,
+          easing: COLLAPSE_EASING,
+          useNativeDriver: false,
+        }),
+      ]).start(() => {
+        setPulling(false);
+        setIndicatorLocked(false);
+        setThresholdReached(false);
+        onEnd?.();
+      });
+    },
+    [pullDistance, translateY]
+  );
+
+  const pinIndicator = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(translateY, {
+        toValue: PINNED_HEIGHT,
+        duration: 150,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.timing(pullDistance, {
+        toValue: THRESHOLD,
+        duration: 150,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+    ]).start();
+  }, [pullDistance, translateY]);
 
   const triggerRefresh = useCallback(async () => {
     if (refreshing) return;
     setRefreshing(true);
     setIndicatorLocked(true);
-    pullDistance.setValue(THRESHOLD);
+    setPulling(false);
+    pinIndicator();
     try {
       await Promise.all([
         Promise.resolve(onRefresh?.()),
@@ -57,18 +113,20 @@ export function usePullToRefresh(options: UsePullToRefreshOptions) {
     } catch (err) {
       console.error('Pull-to-refresh error', err);
     } finally {
-      setRefreshing(false);
-      resetIndicator();
+      collapseToOrigin(() => {
+        setRefreshing(false);
+      });
     }
-  }, [refreshing, onRefresh, pullDistance, resetIndicator]);
+  }, [refreshing, onRefresh, pinIndicator, collapseToOrigin]);
 
   const onScroll = useCallback(
     (event: any) => {
-      if (refreshing) return;
+      if (refreshing || indicatorLocked) return;
       const offsetY = event?.nativeEvent?.contentOffset?.y ?? 0;
       if (offsetY < 0) {
-        const distance = Math.min(THRESHOLD * 1.4, -offsetY);
+        const distance = Math.min(MAX_PULL_DISTANCE, -offsetY);
         pullDistance.setValue(distance);
+        translateY.setValue(rubberBand(distance));
         if (!pulling) setPulling(true);
         if (!thresholdReached && distance >= THRESHOLD) {
           setThresholdReached(true);
@@ -77,20 +135,26 @@ export function usePullToRefresh(options: UsePullToRefreshOptions) {
         if (thresholdReached && distance < THRESHOLD) {
           setThresholdReached(false);
         }
-      } else if (!indicatorLocked) {
-        resetIndicator();
+      } else if (pulling) {
+        pullDistance.setValue(0);
+        translateY.setValue(0);
+        setPulling(false);
+        setThresholdReached(false);
       }
     },
-    [pullDistance, pulling, thresholdReached, refreshing, indicatorLocked, resetIndicator]
+    [pullDistance, pulling, thresholdReached, refreshing, indicatorLocked, rubberBand, translateY]
   );
 
   const onRelease = useCallback(() => {
-    if (thresholdReached && !refreshing) {
-      triggerRefresh();
-    } else if (!indicatorLocked && !refreshing) {
-      resetIndicator();
+    if (refreshing || indicatorLocked) {
+      return;
     }
-  }, [thresholdReached, refreshing, triggerRefresh, indicatorLocked, resetIndicator]);
+    if (thresholdReached) {
+      triggerRefresh();
+    } else if (pulling) {
+      collapseToOrigin();
+    }
+  }, [thresholdReached, refreshing, triggerRefresh, indicatorLocked, pulling, collapseToOrigin]);
 
   const progress = useMemo(
     () =>
@@ -115,6 +179,12 @@ export function usePullToRefresh(options: UsePullToRefreshOptions) {
     outputRange: [0, 0.5, 1],
     extrapolate: 'clamp',
   });
+  const listStyle = useMemo(
+    () => ({
+      transform: [{ translateY }],
+    }),
+    [translateY]
+  );
 
   const indicator = (
     <Animated.View
@@ -137,20 +207,21 @@ export function usePullToRefresh(options: UsePullToRefreshOptions) {
           ]}
         />
         {refreshing ? (
-          <ActivityIndicator size="small" color={COLORS.primary} />
+          <Animated.View
+            style={[
+              styles.spinnerRing,
+              { transform: [{ rotate: spinnerRotate }] },
+            ]}
+          />
         ) : (
           <Animated.View
             style={[styles.arc, { transform: [{ rotate: arcRotate }] }]}
           />
         )}
       </Animated.View>
-      {(pulling || refreshing) && (
+      {!refreshing && pulling && (
         <Text style={styles.label}>
-          {refreshing
-            ? 'Refreshing...'
-            : thresholdReached
-            ? 'Release to refresh'
-            : 'Pull to refresh'}
+          {thresholdReached ? 'Release to refresh' : 'Pull to refresh'}
         </Text>
       )}
     </Animated.View>
@@ -160,7 +231,7 @@ export function usePullToRefresh(options: UsePullToRefreshOptions) {
     indicator,
     onScroll,
     onRelease,
-    listPaddingTop,
+    listStyle,
   };
 }
 
@@ -201,6 +272,17 @@ const styles = StyleSheet.create({
     borderTopColor: COLORS.primary,
     borderLeftColor: COLORS.primary,
     position: 'absolute',
+  },
+  spinnerRing: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2.5,
+    borderColor: '#CBD5F5',
+    borderTopColor: COLORS.primary,
+    borderLeftColor: '#CBD5F5',
+    borderBottomColor: '#CBD5F5',
+    borderRightColor: '#CBD5F5',
   },
   label: {
     marginTop: 6,

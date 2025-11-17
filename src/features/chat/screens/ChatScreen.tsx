@@ -4,7 +4,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  FlatList,
+  Animated,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -112,20 +112,19 @@ export default function ChatScreen() {
       {/* Messages */}
       <View style={styles.messagesWrapper}>
         {messageRefresh.indicator}
-        <FlatList
+        <Animated.FlatList
           data={messages}
           renderItem={renderMessage}
           keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={[
-            styles.messagesContainer,
-            { paddingTop: messageRefresh.listPaddingTop + 16 },
-          ]}
+          style={messageRefresh.listStyle}
+          contentContainerStyle={styles.messagesContainer}
           onScroll={messageRefresh.onScroll}
           onScrollEndDrag={messageRefresh.onRelease}
           onMomentumScrollEnd={messageRefresh.onRelease}
           scrollEventThrottle={16}
           inverted={false}
           showsVerticalScrollIndicator={false}
+          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
         />
       </View>
 
@@ -192,6 +191,7 @@ const styles = StyleSheet.create({
   },
   messagesContainer: {
     paddingHorizontal: 16,
+    paddingTop: 16,
     paddingBottom: 16,
   },
   messageContainer: {
