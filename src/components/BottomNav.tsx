@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated, AccessibilityInfo } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Animated, AccessibilityInfo } from 'react-native';
 import { usePathname, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,6 +7,7 @@ import { COLORS } from '../theme/colors';
 import * as Haptics from 'expo-haptics';
 
 type TabKey = 'marketplace' | 'post-item' | 'chat-list' | 'profile';
+type TabHref = '/marketplace' | '/post-item' | '/chat-list' | '/profile';
 
 export default function BottomNav() {
   const pathname = usePathname();
@@ -16,10 +17,10 @@ export default function BottomNav() {
 
   const tabs = useMemo(
     () => [
-      { key: 'marketplace' as TabKey, label: 'Home', icon: 'home' as const, href: '/marketplace' },
-      { key: 'post-item' as TabKey, label: 'Post', icon: 'plus-circle' as const, href: '/post-item' },
-      { key: 'chat-list' as TabKey, label: 'Messages', icon: 'message-circle' as const, href: '/chat-list' },
-      { key: 'profile' as TabKey, label: 'Profile', icon: 'user' as const, href: '/profile' },
+      { key: 'marketplace' as TabKey, label: 'Home', icon: 'home' as const, href: '/marketplace' as const },
+      { key: 'post-item' as TabKey, label: 'Post', icon: 'plus-circle' as const, href: '/post-item' as const },
+      { key: 'chat-list' as TabKey, label: 'Messages', icon: 'message-circle' as const, href: '/chat-list' as const },
+      { key: 'profile' as TabKey, label: 'Profile', icon: 'user' as const, href: '/profile' as const },
     ],
     []
   );
@@ -94,7 +95,7 @@ export default function BottomNav() {
 
   const bottomPadding = Math.max(12, insets.bottom);
 
-  const handlePress = (href: string, label: string) => {
+  const handlePress = (href: TabHref, label: string) => {
     const now = Date.now();
     const d = now - (lastPressRef.current || 0);
     lastPressRef.current = now;

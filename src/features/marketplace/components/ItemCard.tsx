@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS } from '../../../theme/colors';
 import type { Item } from '../types';
 
@@ -17,18 +17,21 @@ export default function ItemCard({ item }: { item: Item }) {
   return (
     <TouchableOpacity
       style={styles.card}
-      onPress={() => router.push({ pathname: '../item-detail', params: { itemId: item.id } })}
+      onPress={() => router.push({ pathname: '/item-detail', params: { itemId: item.id } })}
       accessibilityRole="button"
       accessibilityLabel={`Open ${item.title}`}
     >
-      {/* placeholder image block */}
       <View style={styles.image}>
-        <Feather name="image" size={32} color="#9CA3AF" />
+        {item.coverImageUrl ? (
+          <Image source={{ uri: item.coverImageUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+        ) : (
+          <Feather name="image" size={32} color="#9CA3AF" />
+        )}
       </View>
 
       <View style={styles.info}>
         <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
-        <Text style={styles.price}>${item.price}</Text>
+        <Text style={styles.price}>${item.price.toFixed(2)}</Text>
         <Text style={styles.meta} numberOfLines={1}>
           {item.location} • {timeAgo(item.postedAt)}
         </Text>
@@ -48,7 +51,7 @@ const styles = StyleSheet.create({
   },
   image: {
     width: '100%', height: 120, backgroundColor: '#F3F4F6',
-    justifyContent: 'center', alignItems: 'center',
+    justifyContent: 'center', alignItems: 'center', overflow: 'hidden',
   },
   info: { padding: 10, gap: 4 },
   title: { fontSize: 14, fontWeight: '600', color: '#111827' },

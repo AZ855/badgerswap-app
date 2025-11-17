@@ -1,16 +1,16 @@
+import { Feather } from '@expo/vector-icons';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
+  Animated,
   Dimensions,
   Image,
-  Animated,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../../../theme/colors';
 import { getItemById } from '../mock/listings';
 

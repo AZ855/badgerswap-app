@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Dimensions,
   Alert,
+  Image,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Feather as Icon } from '@expo/vector-icons';
@@ -63,9 +64,8 @@ export default function ItemPreviewScreen() {
         {/* Image Display */}
         <View style={styles.imageContainer}>
           {images[0] ? (
-            <View style={styles.imagePlaceholder}>
-              <Icon name="image" size={64} color="#9CA3AF" />
-              <Text style={styles.imagePlaceholderText}>Your uploaded photos</Text>
+            <View style={styles.previewImageWrap}>
+              <Image source={{ uri: images[0] as string }} style={styles.previewImage} />
             </View>
           ) : (
             <View style={styles.imagePlaceholder}>
@@ -142,7 +142,7 @@ export default function ItemPreviewScreen() {
           {/* Info Box */}
           <View style={styles.infoBox}>
             <Icon name="info" size={20} color={COLORS.info} />
-            <Text style={styles.infoText}>Buyers will be able to message you about this item once it's published.</Text>
+            <Text style={styles.infoText}>Buyers will be able to message you about this item once it is published.</Text>
           </View>
 
           {/* Preview Stats */}
@@ -185,10 +185,10 @@ export default function ItemPreviewScreen() {
   );
 }
 
-function safeParseImages(s: string): any[] {
+function safeParseImages(s: string): string[] {
   try {
     const v = JSON.parse(s);
-    return Array.isArray(v) ? v : [];
+    return Array.isArray(v) ? v.filter((uri): uri is string => typeof uri === 'string') : [];
   } catch {
     return [];
   }
@@ -207,6 +207,8 @@ const styles = StyleSheet.create({
   },
   previewText: { color: COLORS.white, fontSize: 14, fontWeight: '500', flex: 1 },
   imageContainer: { width, height: width * 0.75, backgroundColor: '#E5E7EB', position: 'relative' },
+  previewImageWrap: { width: '100%', height: '100%', borderRadius: 16, overflow: 'hidden' },
+  previewImage: { width: '100%', height: '100%' },
   imagePlaceholder: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', backgroundColor: '#F3F4F6' },
   imagePlaceholderText: { marginTop: 12, fontSize: 14, color: '#6B7280' },
   noImageText: { marginTop: 12, fontSize: 14, color: '#9CA3AF' },
@@ -291,4 +293,3 @@ const styles = StyleSheet.create({
   },
   publishButtonText: { color: COLORS.white, fontSize: 18, fontWeight: '600' },
 });
-
