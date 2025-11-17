@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   StyleSheet,
@@ -14,17 +14,50 @@ import ItemCard from '../components/ItemCard';
 import ItemListCard from '../components/ItemListCard';
 import type { Category, Item } from '../types';
 import { useListings } from '../useListings';
+import { usePullToRefresh } from '../../../hooks/usePullToRefresh';
 
 export default function MarketplaceScreen() {
   const [searchText, setSearchText] = useState('');
   const [selected, setSelected] = useState<'all' | Category>('all');
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [debouncedQ, setDebouncedQ] = useState('');
+  const [refreshTick, setRefreshTick] = useState(0);
   const t = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingRefreshResolvers = useRef<(() => void)[]>([]);
 
   const { items, loading, error } = useListings({
     search: debouncedQ,
     category: selected,
+    refreshKey: refreshTick,
+  });
+
+  useEffect(() => {
+    if (!loading && pendingRefreshResolvers.current.length) {
+      pendingRefreshResolvers.current.forEach((resolve) => resolve());
+      pendingRefreshResolvers.current = [];
+    }
+  }, [loading]);
+
+  useEffect(
+    () => () => {
+      if (pendingRefreshResolvers.current.length) {
+        pendingRefreshResolvers.current.forEach((resolve) => resolve());
+        pendingRefreshResolvers.current = [];
+      }
+    },
+    []
+  );
+
+  const handleRefresh = useCallback(() => {
+    return new Promise<void>((resolve) => {
+      pendingRefreshResolvers.current.push(resolve);
+      setRefreshTick((tick) => tick + 1);
+    });
+  }, []);
+
+  const pullRefresh = usePullToRefresh({
+    onRefresh: handleRefresh,
+    indicatorOffset: 8,
   });
 
   const onChangeQuery = (text: string) => {
@@ -45,7 +78,7 @@ export default function MarketplaceScreen() {
           <Feather name="search" size={20} color="#9CA3AF" />
           <TextInput
             style={styles.input}
-            placeholder="Search items…"
+            placeholder="Search items..."
             value={searchText}
             onChangeText={onChangeQuery}
             autoCapitalize="none"
@@ -88,42 +121,54 @@ export default function MarketplaceScreen() {
         </View>
       </View>
 
-      {loading && items.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={{ color: '#6B7280' }}>Loading listings…</Text>
-        </View>
-      ) : error ? (
-        <View style={styles.empty}>
-          <Text style={{ color: '#EF4444' }}>{error}</Text>
-        </View>
-      ) : data.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={{ color: '#6B7280' }}>No items match your search.</Text>
-        </View>
-      ) : (
-        <FlatList
-          key={view}
-          data={data}
-          keyExtractor={(i) => i.id}
-          numColumns={view === 'grid' ? 2 : 1}
-          renderItem={({ item }) =>
-            view === 'grid' ? (
-              <ItemCard item={item} />
-            ) : (
-              <ItemListCard item={item} />
-            )
-          }
-          contentContainerStyle={
-            view === 'grid' ? styles.listContent : styles.listContentList
-          }
-          columnWrapperStyle={
-            view === 'grid' ? styles.gridRow : undefined
-          }
-          ItemSeparatorComponent={
-            view === 'list' ? () => <View style={{ height: 12 }} /> : undefined
-          }
-        />
-      )}
+      <View style={{ flex: 1 }}>
+        {pullRefresh.indicator}
+        {loading && items.length === 0 ? (
+          <View style={styles.empty}>
+            <Text style={{ color: '#6B7280' }}>Loading listings...</Text>
+          </View>
+        ) : error ? (
+          <View style={styles.empty}>
+            <Text style={{ color: '#EF4444' }}>{error}</Text>
+          </View>
+        ) : data.length === 0 ? (
+          <View style={styles.empty}>
+            <Text style={{ color: '#6B7280' }}>No items match your search.</Text>
+          </View>
+        ) : (
+          <FlatList
+            key={view}
+            data={data}
+            keyExtractor={(i) => i.id}
+            numColumns={view === 'grid' ? 2 : 1}
+            renderItem={({ item }) =>
+              view === 'grid' ? (
+                <ItemCard item={item} />
+              ) : (
+                <ItemListCard item={item} />
+              )
+            }
+            contentContainerStyle={[
+              view === 'grid' ? styles.listContent : styles.listContentList,
+              {
+                paddingTop:
+                  pullRefresh.listPaddingTop +
+                  (view === 'grid' ? 12 : 24),
+              },
+            ]}
+            columnWrapperStyle={
+              view === 'grid' ? styles.gridRow : undefined
+            }
+            ItemSeparatorComponent={
+              view === 'list' ? () => <View style={{ height: 12 }} /> : undefined
+            }
+            onScroll={pullRefresh.onScroll}
+            onScrollEndDrag={pullRefresh.onRelease}
+            onMomentumScrollEnd={pullRefresh.onRelease}
+            scrollEventThrottle={16}
+          />
+        )}
+      </View>
     </View>
   );
 }

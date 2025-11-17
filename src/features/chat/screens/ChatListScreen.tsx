@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -11,11 +11,26 @@ import { router } from 'expo-router';
 import { Feather as Icon } from '@expo/vector-icons';
 import { COLORS } from '../../../theme/colors';
 import { MOCK_CONVERSATIONS } from '../mock/conversations';
+import { usePullToRefresh } from '../../../hooks/usePullToRefresh';
 
 
 export default function ChatListScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [conversations, setConversations] = useState(MOCK_CONVERSATIONS);
+
+  const handleRefresh = useCallback(() => {
+    return new Promise<void>((resolve) => {
+      setTimeout(() => {
+        setConversations([...MOCK_CONVERSATIONS]);
+        resolve();
+      }, 550);
+    });
+  }, []);
+
+  const pullRefresh = usePullToRefresh({
+    onRefresh: handleRefresh,
+    indicatorOffset: 4,
+  });
 
   const filteredConversations = conversations.filter(
     (conv) =>
@@ -86,12 +101,23 @@ export default function ChatListScreen() {
 
       {/* Conversations List */}
       {filteredConversations.length > 0 ? (
-        <FlatList
-          data={filteredConversations}
-          renderItem={renderConversation}
-          keyExtractor={(item) => item.id.toString()}
-          showsVerticalScrollIndicator={false}
-        />
+        <View style={{ flex: 1 }}>
+          {pullRefresh.indicator}
+          <FlatList
+            data={filteredConversations}
+            renderItem={renderConversation}
+            keyExtractor={(item) => item.id.toString()}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingTop: pullRefresh.listPaddingTop },
+            ]}
+            onScroll={pullRefresh.onScroll}
+            onScrollEndDrag={pullRefresh.onRelease}
+            onMomentumScrollEnd={pullRefresh.onRelease}
+            scrollEventThrottle={16}
+          />
+        </View>
       ) : (
         <View style={styles.emptyState}>
           <Icon name="message-circle" size={64} color="#D1D5DB" />
@@ -231,6 +257,9 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     marginBottom: 24,
+  },
+  listContent: {
+    paddingBottom: 96,
   },
   browseButton: {
     backgroundColor: COLORS.primary,

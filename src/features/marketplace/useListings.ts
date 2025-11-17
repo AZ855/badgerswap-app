@@ -7,6 +7,7 @@ export interface UseListingsOptions {
   search?: string;
   category?: Category | 'all';
   limit?: number;
+  refreshKey?: number;
 }
 
 type ListingDoc = {
@@ -26,7 +27,7 @@ type ListingDoc = {
 };
 
 export function useListings(options: UseListingsOptions = {}) {
-  const { search = '', category = 'all', limit } = options;
+  const { search = '', category = 'all', limit, refreshKey = 0 } = options;
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +57,7 @@ export function useListings(options: UseListingsOptions = {}) {
       }
     );
     return unsubscribe;
-  }, [limit]);
+  }, [limit, refreshKey]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

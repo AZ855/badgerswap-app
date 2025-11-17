@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { StyleSheet, Text, View, FlatList, Animated, Pressable, NativeSyntheticEvent, NativeScrollEvent, ActivityIndicator } from 'react-native';
+import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
+import { StyleSheet, Text, View, Animated, Pressable, NativeSyntheticEvent, NativeScrollEvent, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../theme/colors';
@@ -13,6 +13,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { collection, db, onSnapshot, orderBy, query, where } from '../../../lib/firebase';
 import type { Timestamp } from 'firebase/firestore';
 import { mapListingFromDoc } from '../../marketplace/useListings';
+import { usePullToRefresh } from '../../../hooks/usePullToRefresh';
 
 // no-op time logic moved into ListingRow
 
@@ -50,9 +51,18 @@ export default function ProfileScreen() {
   const listRef = useRef<any>(null);
   const lastTapRef = useRef(0);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [listHeight, setListHeight] = useState(0);
+  const [contentHeight, setContentHeight] = useState(0);
+  const [listingsRefreshKey, setListingsRefreshKey] = useState(0);
+  const [favoritesRefreshKey, setFavoritesRefreshKey] = useState(0);
+  const pendingListingsRefresh = useRef<(() => void)[]>([]);
+  const pendingFavoritesRefresh = useRef<(() => void)[]>([]);
 
   const listings: Item[] = useMemo(() => userListings, [userListings]);
   const favorites: Item[] = useMemo(() => favoriteItems, [favoriteItems]);
+  const listData = tab === 'favorites' ? favorites : listings;
+  const isFavoritesTab = tab === 'favorites';
+  const collapseEnabled = contentHeight - listHeight > COLLAPSE_Y;
 
   // simple tab toggling (underline handled inside ProfileTabs)
 
@@ -78,16 +88,61 @@ export default function ProfileScreen() {
     <ProfileControls status={status} onStatus={setStatus} view={view} onView={setView} />
   ) : null;
 
-useEffect(() => {
-  if (!user?.uid) {
-    setUserListings([]);
-    setListingsLoading(false);
-    setListingsError('Please sign in to view your listings.');
-    return;
-  }
-  setListingsLoading(true);
-  const listingsQuery = query(collection(db, 'listings'), where('sellerId', '==', user.uid));
-  const unsubscribe = onSnapshot(
+  const handleProfileRefresh = useCallback(() => {
+    return new Promise<void>((resolve) => {
+      if (isFavoritesTab) {
+        pendingFavoritesRefresh.current.push(resolve);
+        setFavoritesRefreshKey((k) => k + 1);
+      } else {
+        pendingListingsRefresh.current.push(resolve);
+        setListingsRefreshKey((k) => k + 1);
+      }
+    });
+  }, [isFavoritesTab]);
+
+  const pullRefresh = usePullToRefresh({
+    onRefresh: handleProfileRefresh,
+    indicatorOffset: topPad + 12,
+  });
+
+  useEffect(() => {
+    if (!listingsLoading && pendingListingsRefresh.current.length) {
+      pendingListingsRefresh.current.forEach((resolve) => resolve());
+      pendingListingsRefresh.current = [];
+    }
+  }, [listingsLoading]);
+
+  useEffect(() => {
+    if (!favoritesLoading && pendingFavoritesRefresh.current.length) {
+      pendingFavoritesRefresh.current.forEach((resolve) => resolve());
+      pendingFavoritesRefresh.current = [];
+    }
+  }, [favoritesLoading]);
+
+  useEffect(
+    () => () => {
+      if (pendingListingsRefresh.current.length) {
+        pendingListingsRefresh.current.forEach((resolve) => resolve());
+        pendingListingsRefresh.current = [];
+      }
+      if (pendingFavoritesRefresh.current.length) {
+        pendingFavoritesRefresh.current.forEach((resolve) => resolve());
+        pendingFavoritesRefresh.current = [];
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setUserListings([]);
+      setListingsLoading(false);
+      setListingsError('Please sign in to view your listings.');
+      return;
+    }
+    setListingsLoading(true);
+    const listingsQuery = query(collection(db, 'listings'), where('sellerId', '==', user.uid));
+    const unsubscribe = onSnapshot(
       listingsQuery,
       (snapshot) => {
         type ListingDocData = Parameters<typeof mapListingFromDoc>[1];
@@ -111,7 +166,7 @@ useEffect(() => {
       }
     );
     return unsubscribe;
-  }, [user?.uid]);
+  }, [user?.uid, listingsRefreshKey]);
 
   useEffect(() => {
     if (!user?.uid) {
@@ -142,19 +197,37 @@ useEffect(() => {
       }
     );
     return unsubscribe;
-  }, [user?.uid]);
+  }, [user?.uid, favoritesRefreshKey]);
 
   useEffect(() => {
-    // Preserve current collapse state when toggling tab or view
+    if (!collapseEnabled) {
+      if (isCollapsed) {
+        setIsCollapsed(false);
+      }
+      scrollY.setValue(0);
+      return;
+    }
     const target = isCollapsed ? COLLAPSE_Y : 0;
     scrollY.setValue(target);
     if (listRef.current?.scrollToOffset) {
       try { listRef.current.scrollToOffset({ offset: target, animated: false }); } catch {}
     }
-  }, [tab, view]);
+  }, [tab, view, collapseEnabled, isCollapsed, scrollY]);
 
-  const isFavoritesTab = tab === 'favorites';
-  const listData = isFavoritesTab ? favorites : listings;
+  const handleScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      pullRefresh.onScroll(e);
+      const y = e.nativeEvent.contentOffset.y;
+      if (!collapseEnabled) {
+        scrollY.setValue(0);
+        return;
+      }
+      scrollY.setValue(Math.max(0, y));
+      const next = y > 80;
+      if (next !== isCollapsed) setIsCollapsed(next);
+    },
+    [pullRefresh, collapseEnabled, isCollapsed, scrollY]
+  );
 
   return (
     <View style={styles.container}>
@@ -174,78 +247,81 @@ useEffect(() => {
         {tabs}
         {controls}
       </Pressable>
-      <Animated.FlatList
-        ref={listRef}
-        key={`${view}-${tab}`}
-        data={listData}
-        keyExtractor={(i) => i.id}
-        renderItem={({ item }) => (
-          view === 'list'
-            ? <View style={{ paddingHorizontal: 16 }}><ListingRow item={item} /></View>
-            : <ItemCard item={item as any} />
-        )}
-        numColumns={view === 'grid' ? 2 : 1}
-        columnWrapperStyle={view === 'grid' ? { justifyContent: 'space-between', marginBottom: 12, paddingHorizontal: 16 } : undefined}
-        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-        ListHeaderComponent={<View style={{ height: 12 }} />}
-        contentContainerStyle={{ paddingBottom: bottomPad, backgroundColor: COLORS.background }}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          {
-            useNativeDriver: false,
-            listener: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-              const y = e.nativeEvent.contentOffset.y;
-              const next = y > 80;
-              if (next !== isCollapsed) setIsCollapsed(next);
+      <View style={{ flex: 1 }}>
+        {pullRefresh.indicator}
+        <Animated.FlatList
+          ref={listRef}
+          key={`${view}-${tab}`}
+          data={listData}
+          keyExtractor={(i) => i.id}
+          renderItem={({ item }) => (
+            view === 'list'
+              ? <View style={{ paddingHorizontal: 16 }}><ListingRow item={item} /></View>
+              : <ItemCard item={item as any} />
+          )}
+          numColumns={view === 'grid' ? 2 : 1}
+          columnWrapperStyle={view === 'grid' ? { justifyContent: 'space-between', marginBottom: 12, paddingHorizontal: 16 } : undefined}
+          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+          ListHeaderComponent={<View style={{ height: 12 }} />}
+          contentContainerStyle={[
+            {
+              paddingBottom: bottomPad,
+              backgroundColor: COLORS.background,
+              paddingTop: pullRefresh.listPaddingTop,
             },
+          ]}
+          onScroll={handleScroll}
+          onScrollEndDrag={pullRefresh.onRelease}
+          onMomentumScrollEnd={pullRefresh.onRelease}
+          onLayout={(e) => setListHeight(e.nativeEvent.layout.height)}
+          onContentSizeChange={(_, h) => setContentHeight(h)}
+          scrollEventThrottle={16}
+          contentOffset={{ y: isCollapsed ? COLLAPSE_Y : 0, x: 0 }}
+          ListEmptyComponent={
+            isFavoritesTab ? (
+              <View style={styles.emptyWrap}>
+                {favoritesLoading ? (
+                  <>
+                    <ActivityIndicator color={COLORS.primary} />
+                    <Text style={styles.emptyText}>Loading your favorites...</Text>
+                  </>
+                ) : favoritesError ? (
+                  <>
+                    <Text style={styles.emptyTitle}>Couldn't load favorites</Text>
+                    <Text style={styles.emptyText}>{favoritesError}</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.emptyTitle}>No favorites yet</Text>
+                    <Text style={styles.emptyText}>Tap the heart icon on any item to save it here.</Text>
+                    <View style={{ height: 8 }} />
+                    <Text style={{ color: '#6B7280' }}>Browse the marketplace to add favorites.</Text>
+                  </>
+                )}
+              </View>
+            ) : (
+              <View style={styles.emptyWrap}>
+                {listingsLoading ? (
+                  <>
+                    <ActivityIndicator color={COLORS.primary} />
+                    <Text style={styles.emptyText}>Loading your listings...</Text>
+                  </>
+                ) : listingsError ? (
+                  <>
+                    <Text style={styles.emptyTitle}>Couldn't load listings</Text>
+                    <Text style={styles.emptyText}>{listingsError}</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.emptyTitle}>No listings yet</Text>
+                    <Text style={styles.emptyText}>Items you post will show up here.</Text>
+                  </>
+                )}
+              </View>
+            )
           }
-        )}
-        scrollEventThrottle={16}
-        contentOffset={{ y: isCollapsed ? COLLAPSE_Y : 0, x: 0 }}
-        ListEmptyComponent={
-          isFavoritesTab ? (
-            <View style={styles.emptyWrap}>
-              {favoritesLoading ? (
-                <>
-                  <ActivityIndicator color={COLORS.primary} />
-                  <Text style={styles.emptyText}>Loading your favorites...</Text>
-                </>
-              ) : favoritesError ? (
-                <>
-                  <Text style={styles.emptyTitle}>Couldn't load favorites</Text>
-                  <Text style={styles.emptyText}>{favoritesError}</Text>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.emptyTitle}>No favorites yet</Text>
-                  <Text style={styles.emptyText}>Tap the heart icon on any item to save it here.</Text>
-                  <View style={{ height: 8 }} />
-                  <Text style={{ color: '#6B7280' }}>Browse the marketplace to add favorites.</Text>
-                </>
-              )}
-            </View>
-          ) : (
-            <View style={styles.emptyWrap}>
-              {listingsLoading ? (
-                <>
-                  <ActivityIndicator color={COLORS.primary} />
-                  <Text style={styles.emptyText}>Loading your listings...</Text>
-                </>
-              ) : listingsError ? (
-                <>
-                  <Text style={styles.emptyTitle}>Couldn't load listings</Text>
-                  <Text style={styles.emptyText}>{listingsError}</Text>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.emptyTitle}>No listings yet</Text>
-                  <Text style={styles.emptyText}>Items you post will show up here.</Text>
-                </>
-              )}
-            </View>
-          )
-        }
-      />
+        />
+      </View>
     </View>
   );
 }
