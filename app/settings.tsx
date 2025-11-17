@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert 
 import { Link, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../src/theme/colors';
+import { signOutUW } from '../src/features/auth/api';
 
 function Row({ icon, title, subtitle, href, onPress, right }: any) {
   const content = (
@@ -22,10 +23,20 @@ function Row({ icon, title, subtitle, href, onPress, right }: any) {
 }
 
 export default function SettingsScreen() {
+  const handleConfirmLogout = async () => {
+    try {
+      await signOutUW();
+      router.replace('/login');
+    } catch (error: any) {
+      console.error('Logout failed', error);
+      Alert.alert('Logout failed', error?.message ?? 'Something went wrong. Please try again.');
+    }
+  };
+
   const logout = () => {
     Alert.alert('Log out', 'Are you sure you want to log out?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Log out', style: 'destructive', onPress: () => router.replace('/login') },
+      { text: 'Log out', style: 'destructive', onPress: handleConfirmLogout },
     ]);
   };
   return (
