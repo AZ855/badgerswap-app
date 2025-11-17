@@ -4,7 +4,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  FlatList,
+  Animated,
   StyleSheet,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -103,15 +103,13 @@ export default function ChatListScreen() {
       {filteredConversations.length > 0 ? (
         <View style={{ flex: 1 }}>
           {pullRefresh.indicator}
-          <FlatList
+          <Animated.FlatList
             data={filteredConversations}
             renderItem={renderConversation}
             keyExtractor={(item) => item.id.toString()}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={[
-              styles.listContent,
-              { paddingTop: pullRefresh.listPaddingTop },
-            ]}
+            style={pullRefresh.listStyle}
+            contentContainerStyle={styles.listContent}
             onScroll={pullRefresh.onScroll}
             onScrollEndDrag={pullRefresh.onRelease}
             onMomentumScrollEnd={pullRefresh.onRelease}

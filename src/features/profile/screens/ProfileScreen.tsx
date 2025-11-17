@@ -263,11 +263,11 @@ export default function ProfileScreen() {
           columnWrapperStyle={view === 'grid' ? { justifyContent: 'space-between', marginBottom: 12, paddingHorizontal: 16 } : undefined}
           ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
           ListHeaderComponent={<View style={{ height: 12 }} />}
+          style={pullRefresh.listStyle}
           contentContainerStyle={[
             {
               paddingBottom: bottomPad,
               backgroundColor: COLORS.background,
-              paddingTop: pullRefresh.listPaddingTop,
             },
           ]}
           onScroll={handleScroll}
