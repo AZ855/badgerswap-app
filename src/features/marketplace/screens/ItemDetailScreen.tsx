@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   View,
   Text,
   TouchableOpacity,
@@ -16,6 +17,12 @@ import { COLORS } from '../../../theme/colors';
 import { db, doc, onSnapshot } from '../../../lib/firebase';
 import type { Item } from '../types';
 import { mapListingFromDoc } from '../useListings';
+import { useAuth } from '../../auth/AuthProvider';
+import {
+  addFavoriteListing,
+  removeFavoriteListing,
+  subscribeFavoriteListing,
+} from '../../favorites/api';
 
 const { width } = Dimensions.get('window');
 
@@ -23,10 +30,12 @@ export default function ItemDetailScreen() {
   const params = useLocalSearchParams<{ itemId?: string }>();
   const itemId = typeof params.itemId === 'string' ? params.itemId : '';
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [isSaved, setIsSaved] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [item, setItem] = useState<Item | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
 
   useEffect(() => {
     if (!itemId) {
@@ -60,6 +69,23 @@ export default function ItemDetailScreen() {
     return unsubscribe;
   }, [itemId]);
 
+  useEffect(() => {
+    if (
+      !user?.uid ||
+      !itemId ||
+      (item?.sellerId && item?.sellerId === user.uid)
+    ) {
+      setIsFavorite(false);
+      return;
+    }
+    const unsubscribe = subscribeFavoriteListing(
+      user.uid,
+      itemId,
+      setIsFavorite
+    );
+    return unsubscribe;
+  }, [user?.uid, itemId, item?.sellerId]);
+
   const images = item?.imageUrls?.length ? item.imageUrls : [null];
 
   const MAX_NAME_CHARS = 11; // Target length equal to "Johnny Hong"
@@ -67,8 +93,35 @@ export default function ItemDetailScreen() {
     name.length > max ? `${name.slice(0, Math.max(0, max - 3))}...` : name;
   const resolvedSellerName = item?.seller?.name ?? 'Seller';
   const sellerName = truncateName(resolvedSellerName, MAX_NAME_CHARS);
+  const isOwnListing = Boolean(user?.uid && item?.sellerId === user.uid);
   const postedDate =
     item?.postedAt != null ? formatTimeAgo(item.postedAt) : 'Just now';
+
+  const toggleFavorite = async () => {
+    if (!item || isOwnListing) return;
+    if (!user?.uid) {
+      Alert.alert('Sign in required', 'Please log in to save listings.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Log in', onPress: () => router.push('/login') },
+      ]);
+      return;
+    }
+    setFavoriteBusy(true);
+    try {
+      if (isFavorite) {
+        await removeFavoriteListing(user.uid, item.id);
+        Alert.alert('Removed from favorites', 'This listing was removed from your favorites list.');
+      } else {
+        await addFavoriteListing(user.uid, item);
+        Alert.alert('Saved to favorites', 'This listing is available in your profile favorites tab.');
+      }
+    } catch (err: any) {
+      console.error('Failed to toggle favorite', err);
+      Alert.alert('Error', err?.message ?? 'Unable to update favorites.');
+    } finally {
+      setFavoriteBusy(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -99,13 +152,15 @@ export default function ItemDetailScreen() {
               <Text style={styles.title}>{item.title}</Text>
               <Text style={styles.category}>{item.category}</Text>
             </View>
-            <TouchableOpacity onPress={() => setIsSaved(!isSaved)}>
-              <Feather
-                name="heart"
-                size={24}
-                color={isSaved ? COLORS.primary : '#9CA3AF'}
-              />
-            </TouchableOpacity>
+            {!isOwnListing && (
+              <TouchableOpacity onPress={toggleFavorite} disabled={favoriteBusy}>
+                <Feather
+                  name="heart"
+                  size={24}
+                  color={isFavorite ? COLORS.primary : '#9CA3AF'}
+                />
+              </TouchableOpacity>
+            )}
           </View>
 
           <Text style={styles.price}>${item.price.toFixed(2)}</Text>
@@ -149,10 +204,28 @@ export default function ItemDetailScreen() {
                 </View>
               </View>
             </View>
-            <TouchableOpacity style={styles.viewProfileButton}>
-              <Text style={styles.viewProfileText}>View Profile</Text>
-            </TouchableOpacity>
+            {isOwnListing ? (
+              <View style={styles.yourListingBadge}>
+                <Text style={styles.yourListingText}>Your Listing</Text>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.viewProfileButton}>
+                <Text style={styles.viewProfileText}>View Profile</Text>
+              </TouchableOpacity>
+            )}
           </View>
+
+          {isOwnListing && (
+            <View style={styles.ownerInfoBox}>
+              <Feather name="info" size={16} color={COLORS.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.ownerInfoTitle}>You published this listing</Text>
+                <Text style={styles.ownerInfoText}>
+                  Manage it from your profile tab or edit the details by re-posting.
+                </Text>
+              </View>
+            </View>
+          )}
 
           {/* Description */}
           <View style={styles.section}>
@@ -169,32 +242,45 @@ export default function ItemDetailScreen() {
       </ScrollView>
 
       {/* Bottom Actions */}
-      <View style={styles.bottomActions}>
-        <TouchableOpacity
-          style={styles.saveButton}
-          onPress={() => setIsSaved(!isSaved)}
-        >
-          <Feather
-            name="heart"
-            size={24}
-            color={isSaved ? COLORS.primary : '#374151'}
-          />
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.messageButton}
-          onPress={() => router.push({ 
-            pathname: '/chat', 
-            params: { 
-              userId: item.sellerId,
-              userName: resolvedSellerName 
-            } 
-          })}
-        >
-          <Feather name="message-circle" size={20} color={COLORS.white} />
-          <Text style={styles.messageButtonText}>Message Seller</Text>
-        </TouchableOpacity>
-      </View>
+      {isOwnListing ? (
+        <View style={styles.ownerActions}>
+          <TouchableOpacity
+            style={styles.ownerPrimaryButton}
+            onPress={() => router.replace('/profile')}
+          >
+            <Feather name="user" size={18} color={COLORS.white} />
+            <Text style={styles.ownerPrimaryText}>Go to Your Profile</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.bottomActions}>
+          <TouchableOpacity
+            style={styles.saveButton}
+            onPress={toggleFavorite}
+            disabled={favoriteBusy}
+          >
+            <Feather
+              name="heart"
+              size={24}
+              color={isFavorite ? COLORS.primary : '#374151'}
+            />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.messageButton}
+            onPress={() => router.push({ 
+              pathname: '/chat', 
+              params: { 
+                userId: item.sellerId,
+                userName: resolvedSellerName 
+              } 
+            })}
+          >
+            <Feather name="message-circle" size={20} color={COLORS.white} />
+            <Text style={styles.messageButtonText}>Message Seller</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -469,6 +555,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  yourListingBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+  },
+  yourListingText: {
+    color: '#6B7280',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  ownerInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#EFF6FF',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    marginBottom: 20,
+  },
+  ownerInfoTitle: {
+    color: '#1E40AF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  ownerInfoText: {
+    color: '#1E40AF',
+    fontSize: 13,
+    lineHeight: 18,
+  },
   section: {
     marginBottom: 20,
   },
@@ -523,6 +642,29 @@ const styles = StyleSheet.create({
   messageButtonText: {
     color: COLORS.white,
     fontSize: 18,
+    fontWeight: '600',
+  },
+  ownerActions: {
+    flexDirection: 'row',
+    padding: 16,
+    backgroundColor: COLORS.white,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    gap: 12,
+  },
+  ownerPrimaryButton: {
+    flex: 1,
+    height: 56,
+    backgroundColor: COLORS.primary,
+    borderRadius: 28,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  ownerPrimaryText: {
+    color: COLORS.white,
+    fontSize: 16,
     fontWeight: '600',
   },
 });

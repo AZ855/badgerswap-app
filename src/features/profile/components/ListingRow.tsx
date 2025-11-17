@@ -24,7 +24,12 @@ export default function ListingRow({ item }: { item: Item }) {
         )}
       </View>
       <View style={styles.info}>
-        <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
+          <View style={styles.ownerChip}>
+            <Text style={styles.ownerChipText}>Your listing</Text>
+          </View>
+        </View>
         <View style={styles.rowBetween}>
           <Text style={styles.price}>${item.price}</Text>
           <View style={styles.catChip}><Text style={styles.catText}>{item.category}</Text></View>
@@ -39,10 +44,13 @@ const styles = StyleSheet.create({
   card: { flexDirection: 'row', backgroundColor: COLORS.white, borderRadius: 12, overflow: 'hidden', padding: 10, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, elevation: 1 },
   thumb: { width: 80, height: 80, borderRadius: 10, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   info: { flex: 1, justifyContent: 'center' },
-  title: { fontSize: 16, fontWeight: '600', color: '#111827' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  title: { fontSize: 16, fontWeight: '600', color: '#111827', flex: 1 },
   price: { fontSize: 16, fontWeight: '700', color: COLORS.primary },
   catChip: { backgroundColor: '#F3F4F6', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
   catText: { color: '#6B7280', fontSize: 12 },
   meta: { color: '#6B7280', fontSize: 12, marginTop: 4 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  ownerChip: { backgroundColor: '#F3F4F6', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
+  ownerChipText: { color: '#6B7280', fontSize: 11, fontWeight: '600' },
 });
