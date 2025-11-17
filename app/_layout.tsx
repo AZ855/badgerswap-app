@@ -1,68 +1,109 @@
-import React from 'react';
-import { Stack, usePathname, Link } from 'expo-router';
+import React, { useEffect } from 'react';
+import { Stack, usePathname, Link, useRouter, useSegments } from 'expo-router';
+import { View, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../src/theme/colors';
 import BottomNav from '../src/components/BottomNav';
-import { View, TouchableOpacity } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { AuthProvider, useAuth } from '../src/features/auth/AuthProvider';
 
 export default function RootLayout() {
+  return (
+    <AuthProvider>
+      <AuthGate>
+        <LayoutContent />
+      </AuthGate>
+    </AuthProvider>
+  );
+}
+
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  const segments = useSegments();
+
+  useEffect(() => {
+    if (loading) return;
+    const firstSegment = segments[0] as string | undefined;
+    const isAuthRoute = firstSegment === 'login' || firstSegment === 'register';
+    const isRootOrIndex = !firstSegment || firstSegment === 'index';
+
+    if (!user && !isAuthRoute) {
+      router.replace('/login');
+    } else if (user && (isAuthRoute || isRootOrIndex)) {
+      router.replace('/marketplace');
+    }
+  }, [user, loading, segments, router]);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white }}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
+
+  return <>{children}</>;
+}
+
+function LayoutContent() {
   const pathname = usePathname();
-  const showNav = pathname?.startsWith('/marketplace') ||
-                  pathname?.startsWith('/post-item') ||
-                  pathname?.startsWith('/chat-list') ||
-                  pathname?.startsWith('/profile');
+  const showNav =
+    pathname?.startsWith('/marketplace') ||
+    pathname?.startsWith('/post-item') ||
+    pathname?.startsWith('/chat-list') ||
+    pathname?.startsWith('/profile');
 
   return (
     <>
-    <Stack
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: COLORS.primary,
-        },
-        headerTintColor: COLORS.white,
-        headerTitleStyle: {
-          fontWeight: 'bold',
-        },
-      }}
-    >
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="login" options={{ headerShown: false }} />
-      <Stack.Screen name="register" options={{ title: 'Create Account' }} />
-      <Stack.Screen 
-        name="marketplace" 
-        options={{ 
-          title: 'BadgerSwap',
-          headerLeft: () => null,
-          gestureEnabled: false,
-          animation: 'none',
-        }} 
-      />
-      <Stack.Screen name="item-detail" options={{ title: 'Item Details' }} />
-      <Stack.Screen name="post-item" options={{ title: 'Post Item', gestureEnabled: false, animation: 'none' }} />
-      <Stack.Screen name="chat-list" options={{ title: 'Messages', gestureEnabled: false, animation: 'none' }} />
-      <Stack.Screen name="chat" options={{ title: 'Chat' }} />
-      <Stack.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          gestureEnabled: false,
-          animation: 'none',
-          headerRight: () => (
-            <View style={{ flexDirection: 'row', gap: 16 }}>
-              <Link href="/settings" asChild>
-                <TouchableOpacity accessibilityLabel="Account menu">
-                  <Feather name="menu" size={22} color={COLORS.white} />
-                </TouchableOpacity>
-              </Link>
-            </View>
-          ),
+      <Stack
+        screenOptions={{
+          headerStyle: {
+            backgroundColor: COLORS.primary,
+          },
+          headerTintColor: COLORS.white,
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
         }}
-      />
-      <Stack.Screen name="edit-profile" options={{ title: 'Edit Profile' }} />
-      <Stack.Screen name="settings" options={{ title: 'Settings and activity' }} />
-      <Stack.Screen name="activity" options={{ title: 'Activity' }} />
-    </Stack>
-    {showNav && <BottomNav />}
+      >
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="register" options={{ title: 'Create Account' }} />
+        <Stack.Screen
+          name="marketplace"
+          options={{
+            title: 'BadgerSwap',
+            headerLeft: () => null,
+            gestureEnabled: false,
+            animation: 'none',
+          }}
+        />
+        <Stack.Screen name="item-detail" options={{ title: 'Item Details' }} />
+        <Stack.Screen name="post-item" options={{ title: 'Post Item', gestureEnabled: false, animation: 'none' }} />
+        <Stack.Screen name="chat-list" options={{ title: 'Messages', gestureEnabled: false, animation: 'none' }} />
+        <Stack.Screen name="chat" options={{ title: 'Chat' }} />
+        <Stack.Screen
+          name="profile"
+          options={{
+            title: 'Profile',
+            gestureEnabled: false,
+            animation: 'none',
+            headerRight: () => (
+              <View style={{ flexDirection: 'row', gap: 16 }}>
+                <Link href="/settings" asChild>
+                  <TouchableOpacity accessibilityLabel="Account menu">
+                    <Feather name="menu" size={22} color={COLORS.white} />
+                  </TouchableOpacity>
+                </Link>
+              </View>
+            ),
+          }}
+        />
+        <Stack.Screen name="edit-profile" options={{ title: 'Edit Profile' }} />
+        <Stack.Screen name="settings" options={{ title: 'Settings and activity' }} />
+        <Stack.Screen name="activity" options={{ title: 'Activity' }} />
+      </Stack>
+      {showNav && <BottomNav />}
     </>
   );
 }

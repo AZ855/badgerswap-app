@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS } from '../../../theme/colors';
 import type { Item } from '../types';
 
@@ -17,15 +17,19 @@ export default function ItemListCard({ item }: { item: Item }) {
   return (
     <TouchableOpacity
       style={styles.card}
-      onPress={() => router.push({ pathname: '../item-detail', params: { itemId: item.id } })}
+      onPress={() => router.push({ pathname: '/item-detail', params: { itemId: item.id } })}
     >
       <View style={styles.thumb}>
-        <Feather name="image" size={26} color="#9CA3AF" />
+        {item.coverImageUrl ? (
+          <Image source={{ uri: item.coverImageUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+        ) : (
+          <Feather name="image" size={26} color="#9CA3AF" />
+        )}
       </View>
       <View style={styles.info}>
         <View style={styles.rowBetween}>
           <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
-          <Text style={styles.price}>${item.price}</Text>
+          <Text style={styles.price}>${item.price.toFixed(2)}</Text>
         </View>
         <View style={styles.subRow}>
           <View style={styles.chip}>
@@ -62,6 +66,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   info: { flex: 1 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
@@ -72,4 +77,3 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 12, color: '#6B7280', fontWeight: '500' },
   meta: { fontSize: 12, color: '#6B7280', flexShrink: 1 },
 });
-

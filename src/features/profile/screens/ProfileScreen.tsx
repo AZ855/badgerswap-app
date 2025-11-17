@@ -1,29 +1,41 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { StyleSheet, Text, View, FlatList, Animated, Pressable, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import { StyleSheet, Text, View, FlatList, Animated, Pressable, NativeSyntheticEvent, NativeScrollEvent, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../../../theme/colors';
-import { MOCK_LISTINGS } from '../../marketplace/mock/listings';
 import type { Item } from '../../marketplace/types';
 import ProfileHeader from '../components/ProfileHeader';
 import ProfileTabs from '../components/ProfileTabs';
 import ListingRow from '../components/ListingRow';
 import ProfileControls from '../components/ProfileControls';
-import GridCard from '../components/GridCard';
 import ItemCard from '../../marketplace/components/ItemCard';
+import { useAuth } from '../../auth/AuthProvider';
+import { collection, db, onSnapshot, query, where } from '../../../lib/firebase';
+import { mapListingFromDoc } from '../../marketplace/useListings';
 
 // no-op time logic moved into ListingRow
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  // Mock user profile for demo
-  const user = {
-    id: 'u1',
-    username: 'johnnyhong',
-    name: 'Johnny Hong',
-    uwVerified: true,
-    stats: { listings: MOCK_LISTINGS.length, sold: 0, favorites: 0 },
-  };
+  const [userListings, setUserListings] = useState<Item[]>([]);
+  const [listingsLoading, setListingsLoading] = useState(true);
+  const [listingsError, setListingsError] = useState<string | null>(null);
+  const { user } = useAuth();
+
+  const email = user?.email ?? '';
+  const username = email ? email.split('@')[0] ?? 'badgerswap' : 'badgerswap';
+  const displayName = user?.displayName?.trim() || (email || 'BadgerSwap User');
+  const uwVerified = email ? email.toLowerCase().endsWith('@wisc.edu') : false;
+  const profileUser = useMemo(
+    () => ({
+      id: user?.uid ?? '',
+      username,
+      name: displayName,
+      uwVerified,
+      stats: { listings: userListings.length, sold: 0, favorites: 0 },
+    }),
+    [user?.uid, username, displayName, uwVerified, userListings.length]
+  );
 
   const [tab, setTab] = useState<'listings' | 'favorites'>('listings');
   const [status, setStatus] = useState<'all' | 'available' | 'pending' | 'sold'>('all');
@@ -35,7 +47,7 @@ export default function ProfileScreen() {
   const lastTapRef = useRef(0);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const listings: Item[] = useMemo(() => MOCK_LISTINGS, []);
+  const listings: Item[] = useMemo(() => userListings, [userListings]);
 
   // simple tab toggling (underline handled inside ProfileTabs)
 
@@ -45,10 +57,10 @@ export default function ProfileScreen() {
 
   const header = (
     <ProfileHeader
-      username={user.username}
-      name={user.name}
-      uwVerified={user.uwVerified}
-      stats={user.stats}
+      username={profileUser.username}
+      name={profileUser.name}
+      uwVerified={profileUser.uwVerified}
+      stats={profileUser.stats}
       onEdit={() => router.push('/edit-profile')}
       showHandle={false}
       collapseProgress={collapseProgress as any}
@@ -60,6 +72,41 @@ export default function ProfileScreen() {
   const controls = tab === 'listings' ? (
     <ProfileControls status={status} onStatus={setStatus} view={view} onView={setView} />
   ) : null;
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setUserListings([]);
+      setListingsLoading(false);
+      setListingsError('Please sign in to view your listings.');
+      return;
+    }
+    setListingsLoading(true);
+    const listingsQuery = query(collection(db, 'listings'), where('sellerId', '==', user.uid));
+    const unsubscribe = onSnapshot(
+      listingsQuery,
+      (snapshot) => {
+        type ListingDocData = Parameters<typeof mapListingFromDoc>[1];
+        const mapped = snapshot.docs
+          .map((docSnap) => {
+            const data = docSnap.data() as ListingDocData;
+            return mapListingFromDoc(docSnap.id, data);
+          })
+          .sort(
+            (a, b) =>
+              new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime()
+          );
+        setUserListings(mapped);
+        setListingsLoading(false);
+        setListingsError(null);
+      },
+      (err) => {
+        console.error('Failed to load user listings:', err);
+        setListingsError(err?.message ?? 'Failed to load your listings.');
+        setListingsLoading(false);
+      }
+    );
+    return unsubscribe;
+  }, [user?.uid]);
 
   useEffect(() => {
     // Preserve current collapse state when toggling tab or view
@@ -123,7 +170,26 @@ export default function ProfileScreen() {
             <View style={{ height: 8 }} />
             <Text style={{ color: '#6B7280' }}>Browse the marketplace to add favorites.</Text>
           </View>
-        ) : null}
+        ) : (
+          <View style={styles.emptyWrap}>
+            {listingsLoading ? (
+              <>
+                <ActivityIndicator color={COLORS.primary} />
+                <Text style={styles.emptyText}>Loading your listings...</Text>
+              </>
+            ) : listingsError ? (
+              <>
+                <Text style={styles.emptyTitle}>Couldn't load listings</Text>
+                <Text style={styles.emptyText}>{listingsError}</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.emptyTitle}>No listings yet</Text>
+                <Text style={styles.emptyText}>Items you post will show up here.</Text>
+              </>
+            )}
+          </View>
+        )}
       />
     </View>
   );

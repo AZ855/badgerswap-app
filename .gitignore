@@ -40,7 +40,7 @@ GoogleService-Info.plist
 
 # Local env (commit a .env.example instead)
 .env
-.env.*
+*.env
 .env*.local
 
 # OS/editor

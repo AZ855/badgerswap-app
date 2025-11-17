@@ -11,10 +11,12 @@ import {
   View,
 } from 'react-native';
 import { COLORS } from '../../../theme/colors';
+import { signUpUW } from '../api';
 
 const UW_EMAIL_RE = /^[a-z0-9._%+-]+@wisc\.edu$/i;
 
 export default function RegisterScreen() {
+  const [submitting, setSubmitting] = useState(false);
   const [name, setName] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
 
@@ -56,8 +58,7 @@ export default function RegisterScreen() {
 
   const isValid = !nameError && !emailError && !passwordError && !confirmError;
 
-  const handleRegister = () => {
-    
+  const handleRegister = async () => {
     if (!nameTouched) setNameTouched(true);
     if (!emailTouched) setEmailTouched(true);
     if (!passwordTouched) setPasswordTouched(true);
@@ -68,8 +69,21 @@ export default function RegisterScreen() {
       return;
     }
 
-    
-    router.replace('/marketplace');
+    setSubmitting(true);
+    try {
+      await signUpUW(email, password, name);
+      Alert.alert('Account created', 'Your account has been created.');
+      router.replace('/marketplace');
+    } catch (err: any) {
+      console.error('Register error', err);
+      let message = err?.message ?? 'Failed to create account.';
+      if (err?.code === 'auth/email-already-in-use') {
+        message = 'This email is already registered. Try logging in instead.';
+      }
+      Alert.alert('Registration failed', message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -151,11 +165,13 @@ export default function RegisterScreen() {
           {/* Submit */}
           <TouchableOpacity
             testID="registerButton"
-            style={[styles.primaryBtn, !isValid && styles.primaryBtnDisabled]}
+            style={[styles.primaryBtn, (!isValid || submitting) && styles.primaryBtnDisabled]}
             onPress={handleRegister}
-            disabled={!isValid}
+            disabled={!isValid || submitting}
           >
-            <Text style={styles.primaryBtnText}>Create Account</Text>
+            <Text style={styles.primaryBtnText}>
+              {submitting ? 'Creating account…' : 'Create Account'}
+            </Text>
           </TouchableOpacity>
 
           {/* Back to Login */}

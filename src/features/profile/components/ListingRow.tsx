@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../../../theme/colors';
 import type { Item } from '../../marketplace/types';
@@ -17,7 +17,11 @@ export default function ListingRow({ item }: { item: Item }) {
   return (
     <TouchableOpacity style={styles.card} onPress={() => router.push({ pathname: '/item-detail', params: { itemId: item.id } })}>
       <View style={styles.thumb}>
-        <Feather name="image" size={24} color="#9CA3AF" />
+        {item.coverImageUrl ? (
+          <Image source={{ uri: item.coverImageUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+        ) : (
+          <Feather name="image" size={24} color="#9CA3AF" />
+        )}
       </View>
       <View style={styles.info}>
         <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
@@ -42,4 +46,3 @@ const styles = StyleSheet.create({
   meta: { color: '#6B7280', fontSize: 12, marginTop: 4 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
 });
-

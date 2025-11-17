@@ -11,11 +11,12 @@ import {
   View,
 } from 'react-native';
 import { COLORS } from '../../../theme/colors';
-
+import { signInUW } from '../api';
 
 const UW_EMAIL_RE = /^[a-z0-9._%+-]+@wisc\.edu$/i;
 
 export default function LoginScreen() {
+  const [submitting, setSubmitting] = useState(false);
   const [email, setEmail] = useState('');
   const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState('');
@@ -36,8 +37,7 @@ export default function LoginScreen() {
 
   const isValid = !emailError && !passwordError;
 
-  const handleLogin = () => {
-    
+  const handleLogin = async () => {
     if (!emailTouched) setEmailTouched(true);
     if (!passwordTouched) setPasswordTouched(true);
 
@@ -46,8 +46,20 @@ export default function LoginScreen() {
       return;
     }
 
-    
-    router.replace('/marketplace');
+    setSubmitting(true);
+    try {
+      await signInUW(email, password);
+      router.replace('/marketplace');
+    } catch (err: any) {
+      console.error('Login error', err);
+      let message = err?.message ?? 'Failed to log in. Please try again.';
+      if (err?.code === 'auth/invalid-credential') {
+        message = 'Incorrect email or password.';
+      }
+      Alert.alert('Login failed', message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -97,12 +109,12 @@ export default function LoginScreen() {
 
           <TouchableOpacity
             testID="loginButton"
-            style={[styles.primaryBtn, !isValid ? styles.primaryBtnDisabled : null]}
+            style={[styles.primaryBtn, (!isValid || submitting) ? styles.primaryBtnDisabled : null]}
             onPress={handleLogin}
-            disabled={!isValid}
+            disabled={!isValid || submitting}
           >
             <Text style={styles.primaryBtnText}>
-              Login with UW Email
+              {submitting ? 'Logging in…' : 'Login with UW Email'}
             </Text>
           </TouchableOpacity>
 

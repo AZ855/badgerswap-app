@@ -11,6 +11,8 @@ const CATEGORIES: Cat[] = [
   { id: 'electronics', name: 'Electronics', icon: 'smartphone' },
   { id: 'furniture', name: 'Furniture', icon: 'home' },
   { id: 'clothing', name: 'Clothing', icon: 'shopping-bag' },
+  { id: 'sports', name: 'Sports', icon: 'activity' },
+  { id: 'kitchen', name: 'Kitchen', icon: 'coffee' },
   { id: 'other', name: 'Other', icon: 'package' },
 ];
 

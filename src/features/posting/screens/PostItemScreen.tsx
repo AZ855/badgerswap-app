@@ -1,9 +1,11 @@
 import { Feather } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,7 +14,11 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { auth } from '../../../lib/firebase';
 import { COLORS } from '../../../theme/colors';
+import type { Category, Item } from '../../marketplace/types';
+import { createListing } from '../api';
+import { uploadImageAsync } from '../cloudinary';
 
 const CATEGORIES = [
   { id: 'books', name: 'Books', icon: 'book' },
@@ -42,47 +48,118 @@ const SUGGESTED_LOCATIONS = [
 export default function PostItemScreen() {
   const insets = useSafeAreaInsets();
   const actionsAnim = useRef(new Animated.Value(0)).current;
+
   const [title, setTitle] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
-  const [condition, setCondition] = useState('');
+  const [condition, setCondition] = useState<Item['condition'] | ''>('');
   const [price, setPrice] = useState('');
   const [description, setDescription] = useState('');
-  const [images, setImages] = useState<number[]>([]);
+  type ListingImage = { id: string; localUri: string; remoteUrl?: string };
+  const [images, setImages] = useState<ListingImage[]>([]);
   const [location, setLocation] = useState('');
   const [showLocationSearch, setShowLocationSearch] = useState(false);
   const [locationSearch, setLocationSearch] = useState('');
+  const [posting, setPosting] = useState(false);
+
+  const effectiveLocation = (location || locationSearch).trim();
+  const isFormValid = Boolean(
+    title &&
+      categories.length > 0 &&
+      condition &&
+      price &&
+      description &&
+      images.length > 0 &&
+      effectiveLocation
+  );
+
+  useEffect(() => {
+    Animated.timing(actionsAnim, {
+      toValue: isFormValid && !posting ? 1 : 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [isFormValid, posting, actionsAnim]);
+
+  const filteredLocations = SUGGESTED_LOCATIONS.filter((loc) =>
+    loc.toLowerCase().includes(locationSearch.toLowerCase())
+  );
+
+  const removeImage = (id: string) => {
+    setImages((prev) => prev.filter((img) => img.id !== id));
+  };
+
+  const appendImage = (uri: string) => {
+    setImages((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        localUri: uri,
+      },
+    ]);
+  };
+
+  const openCamera = async () => {
+    if (images.length >= 5) {
+      Alert.alert('Limit reached', 'You can add up to 5 photos.');
+      return;
+    }
+
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'We need camera access to take a photo.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      quality: 0.85,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      appendImage(result.assets[0].uri);
+    }
+  };
+
+  const openGallery = async () => {
+    if (images.length >= 5) {
+      Alert.alert('Limit reached', 'You can add up to 5 photos.');
+      return;
+    }
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'We need access to your photos to upload an image.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.85,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      appendImage(result.assets[0].uri);
+    }
+  };
 
   const handleImagePicker = () => {
-    Alert.alert(
-      'Add Photos',
-      'Choose an option',
-      [
-        {
-          text: 'Take Photo',
-          onPress: () => {
-            if (images.length < 5) {
-              setImages([...images, images.length + 1]);
-            }
-          },
+    Alert.alert('Add Photos', 'Choose an option', [
+      {
+        text: 'Take Photo',
+        onPress: () => {
+          void openCamera();
         },
-        {
-          text: 'Choose from Gallery',
-          onPress: () => {
-            if (images.length < 5) {
-              setImages([...images, images.length + 1]);
-            }
-          },
+      },
+      {
+        text: 'Choose from Gallery',
+        onPress: () => {
+          void openGallery();
         },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
-  const removeImage = (index: number) => {
-    setImages(images.filter((_, i) => i !== index));
-  };
-
-  const handlePostItem = () => {
+  const handlePostItem = async () => {
     if (!title.trim()) {
       Alert.alert('Missing Info', 'Please enter a title');
       return;
@@ -107,32 +184,62 @@ export default function PostItemScreen() {
       Alert.alert('Missing Photos', 'Please add at least one photo');
       return;
     }
-    if (!location) {
+    if (!effectiveLocation) {
       Alert.alert('Missing Info', 'Please select a pickup location');
       return;
     }
+    if (!auth.currentUser) {
+      Alert.alert('Not signed in', 'Please log in before posting an item.');
+      return;
+    }
 
-    Alert.alert(
-      '🎉 Posted!',
-      'Your item is now live on BadgerSwap marketplace.',
-      [{ text: 'View Listing', onPress: () => router.push('/marketplace') }]
-    );
+    setPosting(true);
+    try {
+      const category = (categories[0] ?? 'other') as Category;
+      const priceNumber = Number(price);
+      const conditionValue = condition as Item['condition'];
+      const uploadedUrls = await Promise.all(
+        images.map(async (img) => {
+          if (img.remoteUrl) return img.remoteUrl;
+          return uploadImageAsync(img.localUri);
+        })
+      );
+
+      const listing = await createListing(
+        {
+          title: title.trim(),
+          price: priceNumber,
+          category,
+          condition: conditionValue,
+          description: description.trim(),
+          location: effectiveLocation,
+          imageUrls: uploadedUrls,
+        },
+        auth.currentUser.uid
+      );
+
+      Alert.alert('🎉 Posted!', 'Your item is now live on BadgerSwap marketplace.', [
+        {
+          text: 'View Listing',
+          onPress: () => router.push({ pathname: '/item-detail', params: { itemId: listing.id } }),
+        },
+      ]);
+
+      setTitle('');
+      setCategories([]);
+      setCondition('');
+      setPrice('');
+      setDescription('');
+      setImages([]);
+      setLocation('');
+      setLocationSearch('');
+    } catch (err: any) {
+      console.error('Error posting item:', err);
+      Alert.alert('Error', err?.message ?? 'Failed to post item.');
+    } finally {
+      setPosting(false);
+    }
   };
-
-  const effectiveLocation = (location || locationSearch).trim();
-  const isFormValid = Boolean(title && categories.length > 0 && condition && price && description && images.length > 0 && effectiveLocation);
-
-  useEffect(() => {
-    Animated.timing(actionsAnim, {
-      toValue: isFormValid ? 1 : 0,
-      duration: 220,
-      useNativeDriver: true,
-    }).start();
-  }, [isFormValid, actionsAnim]);
-
-  const filteredLocations = SUGGESTED_LOCATIONS.filter(loc =>
-    loc.toLowerCase().includes(locationSearch.toLowerCase())
-  );
 
   return (
     <View style={styles.container}>
@@ -152,13 +259,17 @@ export default function PostItemScreen() {
             </View>
             <View style={styles.photoGrid}>
               {images.map((img, index) => (
-                <View key={index} style={styles.photoItem}>
+                <View key={img.id} style={styles.photoItem}>
                   <View style={styles.photoPreview}>
-                    <Text style={styles.photoEmoji}>📷</Text>
+                    {img.localUri ? (
+                      <Image source={{ uri: img.localUri }} style={StyleSheet.absoluteFillObject} />
+                    ) : (
+                      <Text style={styles.photoEmoji}>📷</Text>
+                    )}
                   </View>
                   <TouchableOpacity
                     style={styles.removePhotoButton}
-                    onPress={() => removeImage(index)}
+                    onPress={() => removeImage(img.id)}
                   >
                     <Feather name="x" size={12} color={COLORS.white} />
                   </TouchableOpacity>
@@ -170,8 +281,8 @@ export default function PostItemScreen() {
                 </View>
               ))}
               {images.length < 5 && (
-                <TouchableOpacity 
-                  style={styles.addPhotoButton} 
+                <TouchableOpacity
+                  style={styles.addPhotoButton}
                   onPress={handleImagePicker}
                 >
                   <Feather name="upload" size={20} color="#9CA3AF" />
@@ -239,15 +350,19 @@ export default function PostItemScreen() {
                     );
                   }}
                 >
-                  <Feather 
-                    name={cat.icon as any} 
-                    size={14} 
-                    color={categories.includes(cat.id) ? COLORS.white : '#374151'} 
+                  <Feather
+                    name={cat.icon as any}
+                    size={14}
+                    color={
+                      categories.includes(cat.id) ? COLORS.white : '#374151'
+                    }
                   />
-                  <Text style={[
-                    styles.chipText,
-                    categories.includes(cat.id) && styles.chipTextActive,
-                  ]}>
+                  <Text
+                    style={[
+                      styles.chipText,
+                      categories.includes(cat.id) && styles.chipTextActive,
+                    ]}
+                  >
                     {cat.name}
                   </Text>
                 </TouchableOpacity>
@@ -269,12 +384,14 @@ export default function PostItemScreen() {
                     styles.chip,
                     condition === cond && styles.chipActive,
                   ]}
-                  onPress={() => setCondition(cond)}
+                  onPress={() => setCondition(cond as Item['condition'])}
                 >
-                  <Text style={[
-                    styles.chipText,
-                    condition === cond && styles.chipTextActive,
-                  ]}>
+                  <Text
+                    style={[
+                      styles.chipText,
+                      condition === cond && styles.chipTextActive,
+                    ]}
+                  >
                     {cond}
                   </Text>
                 </TouchableOpacity>
@@ -289,7 +406,12 @@ export default function PostItemScreen() {
               <Text style={styles.required}>*</Text>
             </View>
             <View style={styles.searchInputContainer}>
-              <Feather name="search" size={18} color="#9CA3AF" style={styles.searchIcon} />
+              <Feather
+                name="search"
+                size={18}
+                color="#9CA3AF"
+                style={styles.searchIcon}
+              />
               <TextInput
                 style={styles.searchInput}
                 placeholder="Search campus locations..."
@@ -314,7 +436,7 @@ export default function PostItemScreen() {
                 </TouchableOpacity>
               )}
             </View>
-            
+
             {/* Location Dropdown */}
             {showLocationSearch && !location && (
               <View style={styles.locationDropdown}>
@@ -340,7 +462,7 @@ export default function PostItemScreen() {
                 </ScrollView>
               </View>
             )}
-            
+
             {location && (
               <View style={styles.selectedLocation}>
                 <Feather name="map-pin" size={16} color="#10B981" />
@@ -386,18 +508,26 @@ export default function PostItemScreen() {
 
       {/* Slide-up Actions */}
       <Animated.View
-        pointerEvents={isFormValid ? 'auto' : 'none'}
+        pointerEvents={isFormValid && !posting ? 'auto' : 'none'}
         style={[
           styles.bottomActions,
           {
             opacity: actionsAnim,
-            transform: [{ translateY: actionsAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) }],
+            transform: [
+              {
+                translateY: actionsAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [40, 0],
+                }),
+              },
+            ],
             bottom: insets.bottom + 72,
           },
         ]}
       >
         <TouchableOpacity
           style={styles.previewButton}
+          disabled={posting}
           onPress={() =>
             router.push({
               pathname: '/item-preview',
@@ -408,15 +538,21 @@ export default function PostItemScreen() {
                 price,
                 description,
                 location: effectiveLocation,
-                images: JSON.stringify(images),
+                images: JSON.stringify(images.map((img) => img.localUri)),
               },
             })
           }
         >
           <Text style={styles.previewButtonText}>Preview</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionPostButton} onPress={handlePostItem}>
-          <Text style={styles.actionPostButtonText}>Post Item</Text>
+        <TouchableOpacity
+          style={styles.actionPostButton}
+          onPress={handlePostItem}
+          disabled={posting}
+        >
+          <Text style={styles.actionPostButtonText}>
+            {posting ? 'Posting…' : 'Post Item'}
+          </Text>
         </TouchableOpacity>
       </Animated.View>
     </View>
