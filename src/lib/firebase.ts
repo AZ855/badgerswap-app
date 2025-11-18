@@ -1,16 +1,19 @@
+import { getReactNativePersistence, initializeAuth } from '@firebase/auth/dist/rn/index.js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApps, initializeApp } from 'firebase/app';
 import {
+  EmailAuthProvider,
   createUserWithEmailAndPassword,
   getAuth,
   onAuthStateChanged,
+  reauthenticateWithCredential,
   signInWithEmailAndPassword,
   signOut,
+  updatePassword,
   updateProfile,
+  type Auth,
   type User,
 } from 'firebase/auth';
-import { initializeAuth, getReactNativePersistence } from '@firebase/auth/dist/rn/index.js';
-import { Platform } from 'react-native';
 import {
   addDoc,
   collection,
@@ -28,6 +31,7 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
+import { Platform } from 'react-native';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY!,
@@ -38,9 +42,13 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID!,
 };
 
-const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+const existingApps = getApps();
+const app = existingApps.length ? existingApps[0] : initializeApp(firebaseConfig);
 
-let authInstance;
+// Export the initialized app instance for modules that need direct access.
+export const firebaseApp = app;
+
+let authInstance: Auth;
 if (Platform.OS === 'web') {
   authInstance = getAuth(app);
 } else {
@@ -56,8 +64,28 @@ if (Platform.OS === 'web') {
 export const auth = authInstance;
 export const db = getFirestore(app);
 
-// re-export commonly used things so other files can import from here
+// Re-export commonly used helpers so other files can import from a single module.
 export {
-    addDoc, collection, createUserWithEmailAndPassword, deleteDoc, doc, getDoc,
-    getDocs, limit, onAuthStateChanged, onSnapshot, orderBy, query, serverTimestamp, setDoc, signInWithEmailAndPassword, signOut, updateDoc, updateProfile, User, where
+  EmailAuthProvider, addDoc,
+  collection,
+  createUserWithEmailAndPassword,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  onAuthStateChanged,
+  onSnapshot,
+  orderBy,
+  query,
+  reauthenticateWithCredential,
+  serverTimestamp,
+  setDoc,
+  signInWithEmailAndPassword,
+  signOut,
+  updateDoc,
+  updatePassword,
+  updateProfile,
+  where, type User
 };
+

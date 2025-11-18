@@ -1,21 +1,37 @@
-import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { StyleSheet, Text, View, Animated, Pressable, NativeSyntheticEvent, NativeScrollEvent, ActivityIndicator } from 'react-native';
+// src/features/profile/screens/ProfileScreen.tsx
 import { router } from 'expo-router';
+import type { Timestamp } from 'firebase/firestore';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { usePullToRefresh } from '../../../hooks/usePullToRefresh';
+import {
+  collection,
+  db,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  where,
+} from '../../../lib/firebase';
 import { COLORS } from '../../../theme/colors';
+import { useAuth } from '../../auth/AuthProvider';
+import ItemCard from '../../marketplace/components/ItemCard';
 import type { Category, Item } from '../../marketplace/types';
-import ProfileHeader from '../components/ProfileHeader';
-import ProfileTabs from '../components/ProfileTabs';
+import { mapListingFromDoc } from '../../marketplace/useListings';
 import ListingRow from '../components/ListingRow';
 import ProfileControls from '../components/ProfileControls';
-import ItemCard from '../../marketplace/components/ItemCard';
-import { useAuth } from '../../auth/AuthProvider';
-import { collection, db, onSnapshot, orderBy, query, where } from '../../../lib/firebase';
-import type { Timestamp } from 'firebase/firestore';
-import { mapListingFromDoc } from '../../marketplace/useListings';
-import { usePullToRefresh } from '../../../hooks/usePullToRefresh';
-
-// no-op time logic moved into ListingRow
+import ProfileHeader from '../components/ProfileHeader';
+import ProfileTabs from '../components/ProfileTabs';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -25,19 +41,28 @@ export default function ProfileScreen() {
   const [favoriteItems, setFavoriteItems] = useState<Item[]>([]);
   const [favoritesLoading, setFavoritesLoading] = useState(true);
   const [favoritesError, setFavoritesError] = useState<string | null>(null);
+
+  // phone we read from Firestore user doc
+  const [phone, setPhone] = useState<string | null>(null);
+
   const { user } = useAuth();
 
   const email = user?.email ?? '';
   const username = email ? email.split('@')[0] ?? 'badgerswap' : 'badgerswap';
   const displayName = user?.displayName?.trim() || (email || 'BadgerSwap User');
   const uwVerified = email ? email.toLowerCase().endsWith('@wisc.edu') : false;
+
   const profileUser = useMemo(
     () => ({
       id: user?.uid ?? '',
       username,
       name: displayName,
       uwVerified,
-      stats: { listings: userListings.length, sold: 0, favorites: favoriteItems.length },
+      stats: {
+        listings: userListings.length,
+        sold: 0,
+        favorites: favoriteItems.length,
+      },
     }),
     [user?.uid, username, displayName, uwVerified, userListings.length, favoriteItems.length]
   );
@@ -45,9 +70,14 @@ export default function ProfileScreen() {
   const [tab, setTab] = useState<'listings' | 'favorites'>('listings');
   const [status, setStatus] = useState<'all' | 'available' | 'pending' | 'sold'>('all');
   const [view, setView] = useState<'list' | 'grid'>('list');
+
   const COLLAPSE_Y = 120;
   const scrollY = useRef(new Animated.Value(0)).current;
-  const collapseProgress = scrollY.interpolate({ inputRange: [0, COLLAPSE_Y], outputRange: [0, 1], extrapolate: 'clamp' });
+  const collapseProgress = scrollY.interpolate({
+    inputRange: [0, COLLAPSE_Y],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
   const listRef = useRef<any>(null);
   const lastTapRef = useRef(0);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -64,9 +94,6 @@ export default function ProfileScreen() {
   const isFavoritesTab = tab === 'favorites';
   const collapseEnabled = contentHeight - listHeight > COLLAPSE_Y;
 
-  // simple tab toggling (underline handled inside ProfileTabs)
-
-  // With Stack header shown, we do not need extra top safe padding here
   const topPad = 8;
   const bottomPad = insets.bottom + 120;
 
@@ -79,14 +106,22 @@ export default function ProfileScreen() {
       onEdit={() => router.push('/edit-profile')}
       showHandle={false}
       collapseProgress={collapseProgress as any}
+      phoneNumber={phone ?? undefined}
+      photoURL={user?.photoURL ?? null}
     />
   );
 
   const tabs = <ProfileTabs active={tab} onChange={(t) => setTab(t)} />;
 
-  const controls = tab === 'listings' ? (
-    <ProfileControls status={status} onStatus={setStatus} view={view} onView={setView} />
-  ) : null;
+  const controls =
+    tab === 'listings' ? (
+      <ProfileControls
+        status={status}
+        onStatus={setStatus}
+        view={view}
+        onView={setView}
+      />
+    ) : null;
 
   const handleProfileRefresh = useCallback(() => {
     return new Promise<void>((resolve) => {
@@ -133,6 +168,7 @@ export default function ProfileScreen() {
     []
   );
 
+  // Load listings for this user
   useEffect(() => {
     if (!user?.uid) {
       setUserListings([]);
@@ -141,7 +177,10 @@ export default function ProfileScreen() {
       return;
     }
     setListingsLoading(true);
-    const listingsQuery = query(collection(db, 'listings'), where('sellerId', '==', user.uid));
+    const listingsQuery = query(
+      collection(db, 'listings'),
+      where('sellerId', '==', user.uid)
+    );
     const unsubscribe = onSnapshot(
       listingsQuery,
       (snapshot) => {
@@ -168,6 +207,7 @@ export default function ProfileScreen() {
     return unsubscribe;
   }, [user?.uid, listingsRefreshKey]);
 
+  // Load favorites
   useEffect(() => {
     if (!user?.uid) {
       setFavoriteItems([]);
@@ -199,6 +239,7 @@ export default function ProfileScreen() {
     return unsubscribe;
   }, [user?.uid, favoritesRefreshKey]);
 
+  // Keep collapse state stable
   useEffect(() => {
     if (!collapseEnabled) {
       if (isCollapsed) {
@@ -210,9 +251,36 @@ export default function ProfileScreen() {
     const target = isCollapsed ? COLLAPSE_Y : 0;
     scrollY.setValue(target);
     if (listRef.current?.scrollToOffset) {
-      try { listRef.current.scrollToOffset({ offset: target, animated: false }); } catch {}
+      try {
+        listRef.current.scrollToOffset({ offset: target, animated: false });
+      } catch {}
     }
   }, [tab, view, collapseEnabled, isCollapsed, scrollY]);
+
+  // Listen to user doc for phone (realtime)
+  useEffect(() => {
+    if (!user?.uid) {
+      setPhone(null);
+      return;
+    }
+    const userRef = doc(db, 'users', user.uid);
+    const unsubscribe = onSnapshot(
+      userRef,
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data() as { phone?: string; phoneNumber?: string };
+          const value = (data.phoneNumber ?? data.phone ?? '').trim();
+          setPhone(value || null);
+        } else {
+          setPhone(null);
+        }
+      },
+      (err) => {
+        console.error('Failed to load user profile fields:', err);
+      }
+    );
+    return unsubscribe;
+  }, [user?.uid]);
 
   const handleScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -254,13 +322,25 @@ export default function ProfileScreen() {
           key={`${view}-${tab}`}
           data={listData}
           keyExtractor={(i) => i.id}
-          renderItem={({ item }) => (
-            view === 'list'
-              ? <View style={{ paddingHorizontal: 16 }}><ListingRow item={item} /></View>
-              : <ItemCard item={item as any} />
-          )}
+          renderItem={({ item }) =>
+            view === 'list' ? (
+              <View style={{ paddingHorizontal: 16 }}>
+                <ListingRow item={item} />
+              </View>
+            ) : (
+              <ItemCard item={item as any} />
+            )
+          }
           numColumns={view === 'grid' ? 2 : 1}
-          columnWrapperStyle={view === 'grid' ? { justifyContent: 'space-between', marginBottom: 12, paddingHorizontal: 16 } : undefined}
+          columnWrapperStyle={
+            view === 'grid'
+              ? {
+                  justifyContent: 'space-between',
+                  marginBottom: 12,
+                  paddingHorizontal: 16,
+                }
+              : undefined
+          }
           ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
           ListHeaderComponent={<View style={{ height: 12 }} />}
           style={pullRefresh.listStyle}
@@ -293,9 +373,13 @@ export default function ProfileScreen() {
                 ) : (
                   <>
                     <Text style={styles.emptyTitle}>No favorites yet</Text>
-                    <Text style={styles.emptyText}>Tap the heart icon on any item to save it here.</Text>
+                    <Text style={styles.emptyText}>
+                      Tap the heart icon on any item to save it here.
+                    </Text>
                     <View style={{ height: 8 }} />
-                    <Text style={{ color: '#6B7280' }}>Browse the marketplace to add favorites.</Text>
+                    <Text style={{ color: '#6B7280' }}>
+                      Browse the marketplace to add favorites.
+                    </Text>
                   </>
                 )}
               </View>
@@ -314,7 +398,9 @@ export default function ProfileScreen() {
                 ) : (
                   <>
                     <Text style={styles.emptyTitle}>No listings yet</Text>
-                    <Text style={styles.emptyText}>Items you post will show up here.</Text>
+                    <Text style={styles.emptyText}>
+                      Items you post will show up here.
+                    </Text>
                   </>
                 )}
               </View>
@@ -382,9 +468,7 @@ function mapFavoriteDocToItem(docId: string, data: FavoriteDoc): Item {
   };
 }
 
-// Keep header collapse state consistent across tab/view toggles
-// Ensure we do not flash the expand/collapse animation after a toggle
-export {}
+export { };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
@@ -392,6 +476,12 @@ const styles = StyleSheet.create({
   emptyWrap: { alignItems: 'center', padding: 24, gap: 10 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#111827', marginTop: 6 },
   emptyText: { color: '#6B7280' },
-  ctaBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, marginTop: 8 },
+  ctaBtn: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginTop: 8,
+  },
   ctaBtnText: { color: COLORS.white, fontWeight: '700' },
 });
