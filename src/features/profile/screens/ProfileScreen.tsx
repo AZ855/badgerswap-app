@@ -107,6 +107,7 @@ export default function ProfileScreen() {
       showHandle={false}
       collapseProgress={collapseProgress as any}
       phoneNumber={phone ?? undefined}
+      photoURL={user?.photoURL ?? null}
     />
   );
 
