@@ -71,12 +71,16 @@ export default function ChangePasswordScreen() {
 
       await updatePassword(user, newPassword);
 
-      // Log the password change event to Firestore for auditing
-      await addDoc(collection(db, 'securityEvents'), {
-        userId: user.uid,
-        type: 'password_change',
-        createdAt: serverTimestamp(),
-      });
+      // Log the password change event to Firestore for auditing (best effort)
+      try {
+        await addDoc(collection(db, 'securityEvents'), {
+          userId: user.uid,
+          type: 'password_change',
+          createdAt: serverTimestamp(),
+        });
+      } catch (logError) {
+        console.warn('Password updated, but failed to log security event', logError);
+      }
 
       Alert.alert('Password updated', 'Your password has been changed.', [
         { text: 'OK', onPress: () => router.back() },
@@ -86,7 +90,13 @@ export default function ChangePasswordScreen() {
       setConfirmPassword('');
     } catch (err: any) {
       console.error('Failed to change password', err);
-      Alert.alert('Error', err?.message ?? 'Failed to change password.');
+
+      let message = err?.message ?? 'Failed to change password.';
+      if (err?.code === 'auth/invalid-credential' || err?.code === 'auth/wrong-password') {
+        message = 'The current password you entered is incorrect. Please try again.';
+      }
+
+      Alert.alert('Error', message);
     } finally {
       setSaving(false);
     }

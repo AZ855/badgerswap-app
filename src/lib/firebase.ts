@@ -45,6 +45,9 @@ const firebaseConfig = {
 const existingApps = getApps();
 const app = existingApps.length ? existingApps[0] : initializeApp(firebaseConfig);
 
+// Export the initialized app instance for modules that need direct access.
+export const firebaseApp = app;
+
 let authInstance: Auth;
 if (Platform.OS === 'web') {
   authInstance = getAuth(app);
