@@ -285,13 +285,19 @@ export default function ItemDetailScreen() {
                     itemName: item.title,
                     sellerId: item.sellerId,
                     buyerId: user.uid,
-                    partnerName: resolvedSellerName,
-                    partnerInitials: resolvedSellerName[0]?.toUpperCase() ?? 'U',
+
+                    // seller info (the person who posted the listing)
+                    sellerName: resolvedSellerName,
+                    sellerInitials: resolvedSellerName[0]?.toUpperCase() ?? 'S',
+
+                    // buyer info (current logged-in user)
+                    buyerName: user.displayName || user.email || "User",
+                    buyerInitials: (user.displayName || user.email || "U")[0].toUpperCase(),
                   });
 
                   // Go to chat screen
                   router.push({
-                    pathname: `/chat/${threadId}`,
+                    pathname: `/conversation/${threadId}`,
                     params: {
                       partnerName: resolvedSellerName,
                       itemName: item.title

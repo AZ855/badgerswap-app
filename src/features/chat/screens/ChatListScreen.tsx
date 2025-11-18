@@ -51,18 +51,21 @@ export default function ChatListScreen() {
   });
 
   // Search conversations
-  const filteredConversations = conversations.filter(
-      (conv) =>
-          conv.partnerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          conv.itemName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredConversations = conversations.filter((conv) => {
+    const partner = conv.partnerName?.toLowerCase() ?? "";
+    const item = conv.itemName?.toLowerCase() ?? "";
+
+    const query = searchQuery.toLowerCase();
+
+    return partner.includes(query) || item.includes(query);
+  });
 
   const renderConversation = ({ item }: any) => (
       <TouchableOpacity
           style={styles.conversationItem}
           onPress={() =>
               router.push({
-                pathname: `/chat/${item.id}`,
+                pathname: `/conversation/${item.id}`,
                 params: {
                   partnerName: item.partnerName,
                   itemName: item.itemName,

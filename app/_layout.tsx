@@ -81,8 +81,8 @@ function LayoutContent() {
         <Stack.Screen name="item-detail" options={{ title: 'Item Details' }} />
         <Stack.Screen name="post-item" options={{ title: 'Post Item', gestureEnabled: false, animation: 'none' }} />
         <Stack.Screen name="chat-list" options={{ title: 'Messages', gestureEnabled: false, animation: 'none' }} />
-        <Stack.Screen name="chat" options={{ title: 'Chat' }} />
-        <Stack.Screen
+          <Stack.Screen name="chat" options={{ headerShown: false }} />
+          <Stack.Screen
           name="profile"
           options={{
             title: 'Profile',
