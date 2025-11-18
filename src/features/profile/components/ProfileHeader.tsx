@@ -1,7 +1,7 @@
 // src/features/profile/components/ProfileHeader.tsx
 import { Feather } from '@expo/vector-icons';
 import React, { useState } from 'react';
-import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS } from '../../../theme/colors';
 
 export interface ProfileHeaderProps {
@@ -14,8 +14,11 @@ export interface ProfileHeaderProps {
   variant?: 'full' | 'compact';
   collapseProgress?: Animated.Value; // 0 (full) -> 1 (compact)
 
-  // extra: phone under name
+  // extra fields under name
   phoneNumber?: string | null;
+
+  // NEW: optional photo URL for avatar
+  photoURL?: string | null;
 }
 
 export default function ProfileHeader({
@@ -28,6 +31,7 @@ export default function ProfileHeader({
   variant = 'full',
   collapseProgress,
   phoneNumber,
+  photoURL,
 }: ProfileHeaderProps) {
   const p = collapseProgress ?? new Animated.Value(0);
   const avatarScale = p.interpolate({ inputRange: [0, 1], outputRange: [1, 0.9] });
@@ -42,19 +46,25 @@ export default function ProfileHeader({
   const toSpace = (px: number) =>
     p.interpolate({ inputRange: [0, 1], outputRange: [px, 0] });
 
+  // Initials fallback when there is no photo
+  const initials = name
+    .split(' ')
+    .filter(Boolean)
+    .map((n) => n[0])
+    .join('');
+
   return (
     <Animated.View style={[styles.wrap, { paddingBottom: padBottom }]}>
       {showHandle && <Text style={styles.handle}>@{username}</Text>}
       <View style={styles.row}>
         <Animated.View style={[styles.avatar, { transform: [{ scale: avatarScale }] }]}>
-          <Text style={styles.avatarText}>
-            {name
-              .split(' ')
-              .filter(Boolean)
-              .map((n) => n[0])
-              .join('')}
-          </Text>
+          {photoURL ? (
+            <Image source={{ uri: photoURL }} style={styles.avatarImage} />
+          ) : (
+            <Text style={styles.avatarText}>{initials}</Text>
+          )}
         </Animated.View>
+
         <View style={{ flex: 1 }}>
           <View style={styles.nameRow}>
             <Text style={styles.name}>{name}</Text>
@@ -134,6 +144,8 @@ export default function ProfileHeader({
   );
 }
 
+const AVATAR_SIZE = 72;
+
 const styles = StyleSheet.create({
   wrap: {
     backgroundColor: COLORS.white,
@@ -146,12 +158,19 @@ const styles = StyleSheet.create({
   handle: { color: '#6B7280', marginBottom: 10, fontWeight: '600' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: AVATAR_SIZE / 2,
+    resizeMode: 'cover',
   },
   avatarText: { color: COLORS.white, fontWeight: '700', fontSize: 22 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },

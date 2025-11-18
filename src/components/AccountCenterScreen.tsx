@@ -52,6 +52,7 @@ export default function AccountCenterScreen() {
         title="Change password"
         subtitle="Update your password"
         onPress={() => router.push('/change-password')}
+        //onPress={() => alert('change password coming soon')}
       />
 
       <Row
