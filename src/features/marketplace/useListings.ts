@@ -1,6 +1,6 @@
+import { Timestamp, type QueryConstraint } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
 import { collection, db, limit as fsLimit, onSnapshot, orderBy, query } from '../../lib/firebase';
-import { Timestamp, type QueryConstraint } from 'firebase/firestore';
 import type { Category, Item } from './types';
 
 export interface UseListingsOptions {
@@ -19,6 +19,7 @@ type ListingDoc = {
   condition?: string;
   sellerId?: string;
   sellerName?: string;
+  sellerPhotoURL?: string | null;
   sellerVerified?: boolean;
   sellerRating?: number;
   postedAt?: Timestamp;
@@ -88,6 +89,11 @@ export function mapListingFromDoc(id: string, data: ListingDoc): Item {
     typeof data.sellerName === 'string' && data.sellerName.trim().length > 0
       ? data.sellerName.trim()
       : undefined;
+  
+  const sellerPhotoURL =
+    typeof data.sellerPhotoURL === 'string' && data.sellerPhotoURL.trim().length > 0
+      ? data.sellerPhotoURL.trim()
+      : null;
 
   return {
     id,
@@ -107,6 +113,7 @@ export function mapListingFromDoc(id: string, data: ListingDoc): Item {
           verified: Boolean(data.sellerVerified),
           rating:
             typeof data.sellerRating === 'number' ? data.sellerRating : 0,
+          photoURL: sellerPhotoURL,
         }
       : undefined,
   };

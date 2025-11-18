@@ -24,6 +24,7 @@ export interface Item {
     name: string;
     verified: boolean;
     rating: number;
+    photoURL?: string | null;
   };
   // Optional preformatted posted date text (fallback uses postedAt)
   postedDate?: string;

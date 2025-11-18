@@ -209,6 +209,8 @@ export default function PostItemScreen() {
     router.replace('/marketplace');
   };
 
+  const currentUserPhotoURL = auth.currentUser?.photoURL?.trim() || null;
+
   const viewListingAfterHome = (itemId: string) => {
     navigateHome();
     setTimeout(() => {
@@ -238,6 +240,7 @@ export default function PostItemScreen() {
           auth.currentUser.displayName?.trim() ||
           auth.currentUser.email?.split('@')[0] ||
           'BadgerSwap Seller',
+        sellerPhotoURL: currentUserPhotoURL,
         userId: auth.currentUser.uid,
       });
 

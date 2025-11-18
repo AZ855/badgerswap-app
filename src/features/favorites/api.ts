@@ -42,6 +42,7 @@ export async function addFavoriteListing(userId: string, item: Item) {
     description: item.description ?? null,
     sellerId: item.sellerId,
     sellerName: item.seller?.name ?? null,
+    sellerPhotoURL: item.seller?.photoURL ?? null,
     postedAt: item.postedAt ?? null,
     savedAt: serverTimestamp(),
   });

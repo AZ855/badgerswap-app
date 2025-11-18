@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+// import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS } from '../../../theme/colors';
 import type { Item } from '../../marketplace/types';
-import { router } from 'expo-router';
 
 // width handled by FlatList's numColumns + columnWrapperStyle
 

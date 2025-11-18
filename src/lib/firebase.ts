@@ -29,7 +29,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
-  where,
+  where
 } from 'firebase/firestore';
 import { Platform } from 'react-native';
 

@@ -1,19 +1,19 @@
+import { Feather as Icon } from '@expo/vector-icons';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
+  Alert,
+  Dimensions,
+  Image,
   ScrollView,
   StyleSheet,
-  Dimensions,
-  Alert,
-  Image,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import { Feather as Icon } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS } from '../../../theme/colors';
 import { auth } from '../../../lib/firebase';
+import { COLORS } from '../../../theme/colors';
 import type { Category, Item } from '../../marketplace/types';
 import { publishListing, type ListingImageSource } from '../publishListing';
 
@@ -28,6 +28,10 @@ type PreviewPayload = {
   primaryCategoryId: Category;
   categoryLabel: string;
   images: ListingImageSource[];
+};
+
+type RawPreviewPayload = Partial<PreviewPayload> & {
+  images?: (Partial<ListingImageSource>)[] | null;
 };
 
 const DEFAULT_PAYLOAD: PreviewPayload = {
@@ -85,6 +89,8 @@ export default function ItemPreviewScreen() {
     router.replace('/marketplace');
   };
 
+  const currentUserPhotoURL = auth.currentUser?.photoURL?.trim() || null;
+
   const viewListingAfterHome = (itemId: string) => {
     navigateHome();
     setTimeout(() => {
@@ -116,6 +122,7 @@ export default function ItemPreviewScreen() {
           auth.currentUser.displayName?.trim() ||
           auth.currentUser.email?.split('@')[0] ||
           'BadgerSwap Seller',
+        sellerPhotoURL: currentUserPhotoURL,
         userId: auth.currentUser.uid,
       });
 
@@ -293,15 +300,24 @@ function parsePayload(raw?: string | string[]): PreviewPayload {
   const source = Array.isArray(raw) ? raw[0] : raw;
   if (!source) return DEFAULT_PAYLOAD;
   try {
-    const parsed = JSON.parse(source);
-    const images: ListingImageSource[] = Array.isArray(parsed.images)
-      ? parsed.images
-          .map((img: any) => ({
-            localUri: typeof img?.localUri === 'string' ? img.localUri : null,
-            remoteUrl: typeof img?.remoteUrl === 'string' ? img.remoteUrl : null,
-          }))
-          .filter((img) => img.localUri || img.remoteUrl)
-      : [];
+    // const parsed = JSON.parse(source);
+    // const images: ListingImageSource[] = Array.isArray(parsed.images)
+    //   ? parsed.images
+    //       .map((img: any) => ({
+    //         localUri: typeof img?.localUri === 'string' ? img.localUri : null,
+    //         remoteUrl: typeof img?.remoteUrl === 'string' ? img.remoteUrl : null,
+    //       }))
+    //       .filter((img) => img.localUri || img.remoteUrl)
+    //   : [];
+    
+    const parsed: RawPreviewPayload = JSON.parse(source);
+    const parsedImages = Array.isArray(parsed.images) ? parsed.images : [];
+    const images: ListingImageSource[] = parsedImages
+      .map((img) => ({
+        localUri: typeof img?.localUri === 'string' ? img.localUri : null,
+        remoteUrl: typeof img?.remoteUrl === 'string' ? img.remoteUrl : null,
+      }))
+      .filter((img) => img.localUri || img.remoteUrl);
 
     return {
       title: typeof parsed.title === 'string' && parsed.title.length > 0 ? parsed.title : DEFAULT_PAYLOAD.title,

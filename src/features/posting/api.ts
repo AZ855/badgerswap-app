@@ -1,5 +1,5 @@
 import { addDoc, collection, db, getDoc, serverTimestamp } from '../../lib/firebase';
-import type { Item, Category } from '../marketplace/types';
+import type { Category, Item } from '../marketplace/types';
 import { mapListingFromDoc } from '../marketplace/useListings';
 
 export interface NewListingInput {
@@ -11,6 +11,7 @@ export interface NewListingInput {
   location: string;
   imageUrls: string[];
   sellerName: string;
+  sellerPhotoURL?: string | null;
 }
 
 export async function createListing(input: NewListingInput, userId: string): Promise<Item> {
@@ -24,6 +25,7 @@ export async function createListing(input: NewListingInput, userId: string): Pro
     imageUrls: input.imageUrls,
     coverImageUrl: input.imageUrls[0] ?? null,
     sellerName: input.sellerName,
+    sellerPhotoURL: input.sellerPhotoURL ?? null,
     sellerId: userId,
     postedAt: serverTimestamp(),
   });
