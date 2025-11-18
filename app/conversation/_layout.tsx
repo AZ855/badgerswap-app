@@ -7,7 +7,6 @@ export default function ConversationLayout() {
                 headerShown: false,   // hide header for ALL screens inside /conversation
             }}
         >
-            <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="[threadId]" options={{ headerShown: false }} />
         </Stack>
     );
