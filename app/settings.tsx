@@ -1,6 +1,6 @@
 // app/settings.tsx
 import { Feather } from '@expo/vector-icons';
-import { Link, router } from 'expo-router';
+import { Link, router, type Href } from 'expo-router';
 import React from 'react';
 import {
   Alert,
@@ -18,7 +18,7 @@ type RowProps = {
   icon: React.ComponentProps<typeof Feather>['name'];
   title: string;
   subtitle?: string;
-  href?: any;
+  href?: Href;
   onPress?: () => void;
   right?: React.ReactNode;
 };
@@ -30,7 +30,7 @@ function Row({ icon, title, subtitle, href, onPress, right }: RowProps) {
         <Feather name={icon} size={18} color="#111827" />
         <View style={{ marginLeft: 12 }}>
           <Text style={styles.rowTitle}>{title}</Text>
-          {subtitle && <Text style={styles.rowSubtitle}>{subtitle}</Text>}
+          {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
         </View>
       </View>
       {right ?? <Feather name="chevron-right" size={18} color="#9CA3AF" />}
@@ -53,25 +53,24 @@ function Row({ icon, title, subtitle, href, onPress, right }: RowProps) {
 }
 
 export default function SettingsScreen() {
-  const handleConfirmLogout = async () => {
+  const [search, setSearch] = React.useState('');
+
+  async function handleConfirmLogout() {
     try {
       await signOutUW();
       router.replace('/login');
     } catch (error: any) {
       console.error('Logout failed', error);
-      Alert.alert(
-        'Logout failed',
-        error?.message ?? 'Something went wrong. Please try again.'
-      );
+      Alert.alert('Logout failed', error?.message ?? 'Something went wrong. Please try again.');
     }
-  };
+  }
 
-  const logout = () => {
+  function logout() {
     Alert.alert('Log out', 'Are you sure you want to log out?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Log out', style: 'destructive', onPress: handleConfirmLogout },
     ]);
-  };
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
@@ -82,21 +81,18 @@ export default function SettingsScreen() {
           placeholder="Search"
           placeholderTextColor="#9CA3AF"
           style={styles.searchInput}
+          value={search}
+          onChangeText={setSearch}
         />
       </View>
 
       {/* Your account */}
       <Text style={styles.sectionLabel}>Your account</Text>
-
-      {/* NEW: view / edit profile for milestone 3 */}
-      <Row icon="user" title="View profile" href="/profile" />
-      <Row icon="edit-2" title="Edit profile" href="/edit-profile" />
-
       <Row
-        icon="settings"
+        icon="user"
         title="Account Center"
         subtitle="Password, security, personal details"
-        onPress={() => Alert.alert('Coming soon')}
+        href="/account-center"
         right={<Text style={{ color: '#9CA3AF' }} />}
       />
 
@@ -104,11 +100,7 @@ export default function SettingsScreen() {
       <Text style={styles.sectionLabel}>How you use BadgerSwap</Text>
       <Row icon="bookmark" title="Saved" onPress={() => Alert.alert('Saved coming soon')} />
       <Row icon="clock" title="Your activity" href="/activity" />
-      <Row
-        icon="bell"
-        title="Notifications"
-        onPress={() => Alert.alert('Notifications coming soon')}
-      />
+      <Row icon="bell" title="Notifications" onPress={() => Alert.alert('Notifications coming soon')} />
 
       {/* Who can see your content */}
       <Text style={styles.sectionLabel}>Who can see your content</Text>
@@ -122,11 +114,7 @@ export default function SettingsScreen() {
 
       {/* About */}
       <Text style={styles.sectionLabel}>About</Text>
-      <Row
-        icon="info"
-        title="About BadgerSwap"
-        onPress={() => Alert.alert('BadgerSwap v1.0.0')}
-      />
+      <Row icon="info" title="About BadgerSwap" onPress={() => Alert.alert('BadgerSwap v1.0.0')} />
 
       {/* Login section */}
       <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Login</Text>

@@ -1,10 +1,10 @@
-import React, { useEffect } from 'react';
-import { Stack, usePathname, Link, useRouter, useSegments } from 'expo-router';
-import { View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { COLORS } from '../src/theme/colors';
+import { Link, Stack, usePathname, useRouter, useSegments } from 'expo-router';
+import React, { useEffect } from 'react';
+import { ActivityIndicator, TouchableOpacity, View } from 'react-native';
 import BottomNav from '../src/components/BottomNav';
 import { AuthProvider, useAuth } from '../src/features/auth/AuthProvider';
+import { COLORS } from '../src/theme/colors';
 
 export default function RootLayout() {
   return (
@@ -100,6 +100,7 @@ function LayoutContent() {
           }}
         />
         <Stack.Screen name="edit-profile" options={{ title: 'Edit Profile' }} />
+        <Stack.Screen name="account-center" options={{ title: 'Account Center' }} />
         <Stack.Screen name="settings" options={{ title: 'Settings and activity' }} />
         <Stack.Screen name="activity" options={{ title: 'Activity' }} />
       </Stack>
