@@ -1,4 +1,4 @@
-// src/features/profile/screens/EditProfileScreen.tsx
+// src/components/EditProfileScreen.tsx
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -14,39 +14,75 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '../features/auth/AuthProvider';
-import { db, doc, updateDoc, updateProfile } from '../lib/firebase';
+import { db, doc, getDoc, updateDoc, updateProfile } from '../lib/firebase';
 import { COLORS } from '../theme/colors';
 
 export default function EditProfileScreen() {
   const { user, loading } = useAuth();
+
   const [displayName, setDisplayName] = useState('');
   const [initialDisplayName, setInitialDisplayName] = useState('');
+
+  const [phone, setPhone] = useState('');
+  const [initialPhone, setInitialPhone] = useState('');
+
   const [saving, setSaving] = useState(false);
 
-  // Load the user's current profile info
+  // Load current profile data (name from auth, phone from Firestore)
   useEffect(() => {
-    if (user) {
-      const name = user.displayName ?? '';
-      setDisplayName(name);
-      setInitialDisplayName(name);
-    }
+    if (!user) return;
+
+    const name = user.displayName ?? '';
+    setDisplayName(name);
+    setInitialDisplayName(name);
+
+    const loadProfile = async () => {
+      try {
+        const userRef = doc(db, 'users', user.uid);
+        const snap = await getDoc(userRef);
+        if (snap.exists()) {
+          const data = snap.data() as any;
+          if (typeof data.phone === 'string') {
+            setPhone(data.phone);
+            setInitialPhone(data.phone);
+          } else if (typeof data.phoneNumber === 'string') {
+            setPhone(data.phoneNumber);
+            setInitialPhone(data.phoneNumber);
+          } else {
+            setPhone('');
+            setInitialPhone('');
+          }
+        } else {
+          setPhone('');
+          setInitialPhone('');
+        }
+      } catch (e) {
+        console.warn('Failed to load profile document', e);
+      }
+    };
+
+    loadProfile();
   }, [user]);
 
-  // Handle saving updated profile info
   const handleSave = async () => {
     if (!user) {
       Alert.alert('Not signed in', 'Please sign in to edit your profile.');
       return;
     }
 
-    const trimmed = displayName.trim();
-    if (!trimmed) {
+    const trimmedName = displayName.trim();
+    const trimmedPhone = phone.trim();
+
+    if (!trimmedName) {
       Alert.alert('Name required', 'Please enter a display name.');
       return;
     }
 
-    // If nothing changed, simply go back
-    if (trimmed === initialDisplayName) {
+    const noChanges =
+      trimmedName === initialDisplayName &&
+      trimmedPhone === initialPhone;
+
+    if (noChanges) {
       router.back();
       return;
     }
@@ -54,12 +90,17 @@ export default function EditProfileScreen() {
     try {
       setSaving(true);
 
-      // Update Firebase Auth display name
-      await updateProfile(user, { displayName: trimmed });
+      // Update Firebase Auth displayName
+      if (trimmedName !== initialDisplayName) {
+        await updateProfile(user, { displayName: trimmedName });
+      }
 
       // Update Firestore user document
       const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, { displayName: trimmed });
+      await updateDoc(userRef, {
+        displayName: trimmedName,
+        phone: trimmedPhone || null, // 空字符串就写 null
+      });
 
       Alert.alert('Profile updated', 'Your changes have been saved.', [
         { text: 'OK', onPress: () => router.back() },
@@ -72,7 +113,6 @@ export default function EditProfileScreen() {
     }
   };
 
-  // Loading state while auth is initializing
   if (loading) {
     return (
       <View style={styles.center}>
@@ -81,7 +121,6 @@ export default function EditProfileScreen() {
     );
   }
 
-  // If user is not logged in
   if (!user) {
     return (
       <View style={styles.center}>
@@ -90,20 +129,26 @@ export default function EditProfileScreen() {
     );
   }
 
-  const disabled = saving || displayName.trim() === initialDisplayName;
+  const disabled =
+    saving ||
+    (displayName.trim() === initialDisplayName &&
+      phone.trim() === initialPhone);
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.title}>Edit profile</Text>
         <Text style={styles.subtitle}>
-          Update how your name appears to other BadgerSwap users.
+          Update how your information appears to other BadgerSwap users.
         </Text>
 
-        {/* Display name input */}
+        {/* Display name */}
         <View style={styles.fieldGroup}>
           <Text style={styles.label}>Display name</Text>
           <TextInput
@@ -116,7 +161,19 @@ export default function EditProfileScreen() {
           />
         </View>
 
-        {/* Email is read-only */}
+        {/* Phone number */}
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>Phone number</Text>
+          <TextInput
+            value={phone}
+            onChangeText={setPhone}
+            placeholder="Optional phone number"
+            keyboardType="phone-pad"
+            style={styles.input}
+          />
+        </View>
+
+        {/* Email (read-only) */}
         <View style={styles.fieldGroup}>
           <Text style={styles.label}>Email</Text>
           <View style={[styles.input, styles.inputDisabled]}>
@@ -124,25 +181,37 @@ export default function EditProfileScreen() {
           </View>
         </View>
 
-        {/* Action buttons */}
+        {/* Buttons */}
         <View style={styles.buttonRow}>
           <TouchableOpacity
             style={[styles.button, styles.secondaryButton]}
             onPress={() => router.back()}
             disabled={saving}
           >
-            <Text style={[styles.buttonText, styles.secondaryButtonText]}>Cancel</Text>
+            <Text style={[styles.buttonText, styles.secondaryButtonText]}>
+              Cancel
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.button, disabled ? styles.buttonDisabled : styles.primaryButton]}
+            style={[
+              styles.button,
+              disabled ? styles.buttonDisabled : styles.primaryButton,
+            ]}
             onPress={handleSave}
             disabled={disabled}
           >
             {saving ? (
               <ActivityIndicator />
             ) : (
-              <Text style={[styles.buttonText, disabled && styles.buttonTextDisabled]}>Save</Text>
+              <Text
+                style={[
+                  styles.buttonText,
+                  disabled && styles.buttonTextDisabled,
+                ]}
+              >
+                Save
+              </Text>
             )}
           </TouchableOpacity>
         </View>
@@ -206,8 +275,8 @@ const styles = StyleSheet.create({
   },
   buttonRow: {
     flexDirection: 'row',
-    marginTop: 32,
     gap: 12,
+    marginTop: 8,
   },
   button: {
     flex: 1,
@@ -220,7 +289,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
   },
   secondaryButton: {
-    backgroundColor: 'transparent',
+    backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
@@ -228,17 +297,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#D1D5DB',
   },
   buttonText: {
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.white,
-  },
-  buttonTextDisabled: {
-    color: '#9CA3AF',
   },
   secondaryButtonText: {
     color: '#111827',
   },
+  buttonTextDisabled: {
+    color: '#9CA3AF',
+  },
   errorText: {
-    color: '#B91C1C',
-    fontSize: 14,
+    color: '#DC2626',
   },
 });

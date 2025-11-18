@@ -1,77 +1,72 @@
-// src/features/profile/screens/AccountCenterScreen.tsx
+// src/components/AccountCenterScreen.tsx
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
-import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-} from 'react-native';
-import { COLORS } from '../../../theme/colors';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { COLORS } from '../theme/colors';
 
 type RowProps = {
   icon: React.ComponentProps<typeof Feather>['name'];
   title: string;
   subtitle?: string;
-  onPress?: () => void;
+  onPress: () => void;
 };
 
 function Row({ icon, title, subtitle, onPress }: RowProps) {
   return (
     <TouchableOpacity style={styles.row} onPress={onPress}>
-      <View style={styles.rowInner}>
-        <View style={styles.rowLeft}>
-          <Feather name={icon} size={18} color="#111827" />
-          <View style={{ marginLeft: 12 }}>
-            <Text style={styles.rowTitle}>{title}</Text>
-            {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
-          </View>
+      <View style={styles.rowLeft}>
+        <Feather name={icon} size={18} color="#111827" />
+        <View style={{ marginLeft: 12 }}>
+          <Text style={styles.rowTitle}>{title}</Text>
+          {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
         </View>
-        <Feather name="chevron-right" size={18} color="#9CA3AF" />
       </View>
+      <Feather name="chevron-right" size={18} color="#9CA3AF" />
     </TouchableOpacity>
   );
 }
 
 export default function AccountCenterScreen() {
-  const goToEditProfile = () => {
-    router.push('/edit-profile');
-  };
-
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
-      <Text style={styles.sectionLabel}>Your account</Text>
+      <Text style={styles.sectionLabel}>Personal Details</Text>
+
+      {/* <Row
+        icon="user"
+        title="View profile"
+        subtitle="See what others can view"
+        onPress={() => router.push('/profile')}
+      /> */}
+
       <Row
         icon="edit-2"
         title="Edit profile"
-        subtitle="Name, photo, and basic info"
-        onPress={goToEditProfile}
+        subtitle="Name, photo, basic info"
+        onPress={() => router.push('/edit-profile')}
       />
 
       <Text style={styles.sectionLabel}>Security</Text>
       <Row
         icon="lock"
         title="Change password"
-        subtitle="Update your BadgerSwap password"
-        onPress={() => Alert.alert('Change password', 'Coming soon')}
-      />
-      <Row
-        icon="shield"
-        title="Login activity"
-        subtitle="See recent devices and sessions"
-        onPress={() => Alert.alert('Login activity', 'Coming soon')}
+        subtitle="Update your password"
+        onPress={() => router.push('/change-password')}
       />
 
-      <Text style={styles.sectionLabel}>Personal details</Text>
       <Row
-        icon="info"
-        title="Personal details"
-        subtitle="Email and other contact info"
-        onPress={() => Alert.alert('Personal details', 'Coming soon')}
+        icon="activity"
+        title="Login activity"
+        subtitle="Where you're logged in"
+        onPress={() => router.push('/login-activity')}
       />
+
+      {/* <Row
+        icon="id-card"
+        title="Personal details"
+        subtitle="Contact info and more"
+        onPress={() => router.push('/personal-details')}
+      /> */}
     </ScrollView>
   );
 }
@@ -88,6 +83,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontSize: 12,
     fontWeight: '700',
+    textTransform: 'uppercase',
   },
   row: {
     backgroundColor: COLORS.white,
@@ -95,8 +91,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
-  },
-  rowInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
