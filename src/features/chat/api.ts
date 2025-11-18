@@ -24,8 +24,10 @@ export async function getOrCreateThread({
                                             itemName,
                                             sellerId,
                                             buyerId,
-                                            partnerName,
-                                            partnerInitials,
+                                            sellerName,
+                                            sellerInitials,
+                                            buyerName,
+                                            buyerInitials,
                                         }) {
     const threadId = makeThreadId(itemId, buyerId, sellerId);
     const ref = doc(db, "chats", threadId);
@@ -38,8 +40,15 @@ export async function getOrCreateThread({
             itemId,
             itemName,
             participants: [buyerId, sellerId],
-            partnerName,
-            partnerInitials,
+
+            // store both names
+            buyerId,
+            sellerId,
+            buyerName,
+            sellerName,
+            buyerInitials,
+            sellerInitials,
+
             lastMessage: "",
             timestamp: serverTimestamp(),
             unread: {
@@ -94,9 +103,25 @@ export function subscribeToThreads(userId: string, callback: (threads: any[]) =>
     const q = query(threadsRef, where("participants", "array-contains", userId));
 
     return onSnapshot(q, (snap) => {
-        callback(
-            snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-        );
+        const threads = snap.docs.map((d) => {
+            const data = d.data();
+            const otherId = data.participants.find((p: string) => p !== userId);
+
+            const partnerName =
+                otherId === data.sellerId ? data.sellerName : data.buyerName;
+
+            const partnerInitials =
+                otherId === data.sellerId ? data.sellerInitials : data.buyerInitials;
+
+            return {
+                id: d.id,
+                ...data,
+                partnerName,
+                partnerInitials,
+            };
+        });
+
+        callback(threads);
     });
 }
 
