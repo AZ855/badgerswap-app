@@ -52,6 +52,7 @@ export default function ProfileScreen() {
   const displayName = user?.displayName?.trim() || (email || 'BadgerSwap User');
   const uwVerified = email ? email.toLowerCase().endsWith('@wisc.edu') : false;
 
+  // Compose a lightweight view model for the header so UI stays dumb
   const profileUser = useMemo(
     () => ({
       id: user?.uid ?? '',
@@ -97,6 +98,7 @@ export default function ProfileScreen() {
   const topPad = 8;
   const bottomPad = insets.bottom + 120;
 
+  // Header and tab controls are memoized chunks to keep FlatList lean
   const header = (
     <ProfileHeader
       username={profileUser.username}
@@ -123,6 +125,7 @@ export default function ProfileScreen() {
       />
     ) : null;
 
+  // Fan out to the right Firestore query when the pull-to-refresh fires
   const handleProfileRefresh = useCallback(() => {
     return new Promise<void>((resolve) => {
       if (isFavoritesTab) {
@@ -135,11 +138,13 @@ export default function ProfileScreen() {
     });
   }, [isFavoritesTab]);
 
+  // Custom hook renders the indicator and returns scroll handlers
   const pullRefresh = usePullToRefresh({
     onRefresh: handleProfileRefresh,
     indicatorOffset: topPad + 12,
   });
 
+  // Resolve pending refresh promises once the snapshot settles
   useEffect(() => {
     if (!listingsLoading && pendingListingsRefresh.current.length) {
       pendingListingsRefresh.current.forEach((resolve) => resolve());
@@ -147,6 +152,7 @@ export default function ProfileScreen() {
     }
   }, [listingsLoading]);
 
+  // Same deal for favorites so the spinner matches whichever tab is visible
   useEffect(() => {
     if (!favoritesLoading && pendingFavoritesRefresh.current.length) {
       pendingFavoritesRefresh.current.forEach((resolve) => resolve());
