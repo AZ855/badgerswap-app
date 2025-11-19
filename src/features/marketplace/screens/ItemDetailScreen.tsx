@@ -16,6 +16,7 @@ import {
 import { db, doc, onSnapshot } from '../../../lib/firebase';
 import { COLORS } from '../../../theme/colors';
 import { useAuth } from '../../auth/AuthProvider';
+import { getOrCreateThread } from '../../chat/api';
 import {
   addFavoriteListing,
   removeFavoriteListing,
@@ -325,18 +326,51 @@ export default function ItemDetailScreen() {
               color={isFavorite ? COLORS.primary : '#374151'}
             />
           </TouchableOpacity>
-          
+
           <TouchableOpacity
-            style={styles.messageButton}
-            onPress={() => router.push({ 
-              pathname: '/chat', 
-              params: { 
-                userId: item.sellerId,
-                userName: resolvedSellerName 
-              } 
-            })}
+              style={styles.messageButton}
+              onPress={async () => {
+                try {
+                  if (!user?.uid) {
+                    Alert.alert('Sign in required', 'Please log in to send messages.', [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Log in', onPress: () => router.push('/login') }
+                    ]);
+                    return;
+                  }
+
+                  // Get or create chat thread for buyer ↔ seller ↔ listing
+                  const threadId = await getOrCreateThread({
+                    itemId: item.id,
+                    itemName: item.title,
+                    sellerId: item.sellerId,
+                    buyerId: user.uid,
+
+                    // seller info (the person who posted the listing)
+                    sellerName: resolvedSellerName,
+                    sellerInitials: resolvedSellerName[0]?.toUpperCase() ?? 'S',
+
+                    // buyer info (current logged-in user)
+                    buyerName: user.displayName || user.email || "User",
+                    buyerInitials: (user.displayName || user.email || "U")[0].toUpperCase(),
+                  });
+
+                  // Go to chat screen
+                  router.push({
+                    pathname: '/conversation/[threadId]',
+                    params: {
+                      threadId,
+                      partnerName: resolvedSellerName,
+                      itemName: item.title
+                    }
+                  });
+                } catch (err: any) {
+                  console.error('Failed to start chat:', err);
+                  Alert.alert('Error', err?.message ?? 'Unable to open chat.');
+                }
+              }}
           >
-            <Feather name="message-circle" size={20} color={COLORS.white} />
+          <Feather name="message-circle" size={20} color={COLORS.white} />
             <Text style={styles.messageButtonText}>Message Seller</Text>
           </TouchableOpacity>
         </View>

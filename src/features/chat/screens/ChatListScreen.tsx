@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -10,20 +10,38 @@ import {
 import { router } from 'expo-router';
 import { Feather as Icon } from '@expo/vector-icons';
 import { COLORS } from '../../../theme/colors';
-import { MOCK_CONVERSATIONS } from '../mock/conversations';
 import { usePullToRefresh } from '../../../hooks/usePullToRefresh';
-
+import { subscribeToThreads } from '../api';
+import { useAuth } from '../../auth/AuthProvider';
 
 export default function ChatListScreen() {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [conversations, setConversations] = useState(MOCK_CONVERSATIONS);
+  const [conversations, setConversations] = useState<any[]>([]);
 
+  // 🔥 Load conversations from Firestore
+  useEffect(() => {
+    if (!user) return;
+
+    return subscribeToThreads(user.uid, (threads) => {
+      const formatted = threads.map((t: any) => ({
+        id: t.threadId,
+        partnerName: t.partnerName,
+        partnerInitials: t.partnerInitials,
+        itemName: t.itemName,
+        lastMessage: t.lastMessage || '',
+        timestamp: 'now',        // optional, replace later if you add real timestamps
+        unreadCount: t.unread?.[user.uid] || 0,
+      }));
+
+      setConversations(formatted);
+    });
+  }, [user]);
+
+  // Refresh (Fires instantly since Firestore updates in real-time)
   const handleRefresh = useCallback(() => {
     return new Promise<void>((resolve) => {
-      setTimeout(() => {
-        setConversations([...MOCK_CONVERSATIONS]);
-        resolve();
-      }, 550);
+      setTimeout(() => resolve(), 300);
     });
   }, []);
 
@@ -32,115 +50,123 @@ export default function ChatListScreen() {
     indicatorOffset: 4,
   });
 
-  const filteredConversations = conversations.filter(
-    (conv) =>
-      conv.partnerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conv.itemName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Search conversations
+  const filteredConversations = conversations.filter((conv) => {
+    const partner = conv.partnerName?.toLowerCase() ?? "";
+    const item = conv.itemName?.toLowerCase() ?? "";
+
+    const query = searchQuery.toLowerCase();
+
+    return partner.includes(query) || item.includes(query);
+  });
 
   const renderConversation = ({ item }: any) => (
-    <TouchableOpacity
-      style={styles.conversationItem}
-      onPress={() => router.push({ 
-        pathname: '/chat', 
-        params: { 
-          userId: item.id.toString(),
-          userName: item.partnerName 
-        } 
-      })}
-    >
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{item.partnerInitials}</Text>
-      </View>
-      
-      <View style={styles.conversationContent}>
-        <View style={styles.conversationHeader}>
-          <Text style={styles.partnerName}>{item.partnerName}</Text>
-          <Text style={styles.timestamp}>{item.timestamp}</Text>
+      <TouchableOpacity
+          style={styles.conversationItem}
+          onPress={() =>
+              router.push({
+                pathname: `/conversation/${item.id}`,
+                params: {
+                  partnerName: item.partnerName,
+                  itemName: item.itemName,
+                },
+              })
+          }
+      >
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{item.partnerInitials}</Text>
         </View>
-        
-        <Text style={styles.itemName}>📦 {item.itemName}</Text>
-        
-        <View style={styles.messagePreview}>
-          <Text
-            style={[
-              styles.lastMessage,
-              item.unreadCount > 0 && styles.lastMessageUnread,
-            ]}
-            numberOfLines={1}
-          >
-            {item.lastMessage}
-          </Text>
-          {item.unreadCount > 0 && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadCount}>{item.unreadCount}</Text>
-            </View>
-          )}
+
+        <View style={styles.conversationContent}>
+          <View style={styles.conversationHeader}>
+            <Text style={styles.partnerName}>{item.partnerName}</Text>
+            <Text style={styles.timestamp}>{item.timestamp}</Text>
+          </View>
+
+          <Text style={styles.itemName}>📦 {item.itemName}</Text>
+
+          <View style={styles.messagePreview}>
+            <Text
+                style={[
+                  styles.lastMessage,
+                  item.unreadCount > 0 && styles.lastMessageUnread,
+                ]}
+                numberOfLines={1}
+            >
+              {item.lastMessage}
+            </Text>
+
+            {item.unreadCount > 0 && (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadCount}>{item.unreadCount}</Text>
+                </View>
+            )}
+          </View>
         </View>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
   );
 
   return (
-    <View style={styles.container}>
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Icon name="search" size={20} color="#9CA3AF" />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search conversations..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Icon name="x" size={20} color="#9CA3AF" />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Conversations List */}
-      {filteredConversations.length > 0 ? (
-        <View style={{ flex: 1 }}>
-          {pullRefresh.indicator}
-          <Animated.FlatList
-            data={filteredConversations}
-            renderItem={renderConversation}
-            keyExtractor={(item) => item.id.toString()}
-            showsVerticalScrollIndicator={false}
-            style={pullRefresh.listStyle}
-            contentContainerStyle={styles.listContent}
-            onScroll={pullRefresh.onScroll}
-            onScrollEndDrag={pullRefresh.onRelease}
-            onMomentumScrollEnd={pullRefresh.onRelease}
-            scrollEventThrottle={16}
+      <View style={styles.container}>
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <Icon name="search" size={20} color="#9CA3AF" />
+          <TextInput
+              style={styles.searchInput}
+              placeholder="Search conversations..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
           />
-        </View>
-      ) : (
-        <View style={styles.emptyState}>
-          <Icon name="message-circle" size={64} color="#D1D5DB" />
-          <Text style={styles.emptyStateTitle}>
-            {searchQuery ? 'No conversations found' : 'No messages yet'}
-          </Text>
-          <Text style={styles.emptyStateText}>
-            {searchQuery
-              ? 'Try searching for something else'
-              : 'Start browsing the marketplace and message sellers'}
-          </Text>
-          {!searchQuery && (
-            <TouchableOpacity
-              style={styles.browseButton}
-              onPress={() => router.push('/marketplace')}
-            >
-              <Text style={styles.browseButtonText}>Browse Marketplace</Text>
-            </TouchableOpacity>
+          {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Icon name="x" size={20} color="#9CA3AF" />
+              </TouchableOpacity>
           )}
         </View>
-      )}
-    </View>
+
+        {/* Conversations List */}
+        {filteredConversations.length > 0 ? (
+            <View style={{ flex: 1 }}>
+              {pullRefresh.indicator}
+              <Animated.FlatList
+                  data={filteredConversations}
+                  renderItem={renderConversation}
+                  keyExtractor={(item) => item.id}
+                  showsVerticalScrollIndicator={false}
+                  style={pullRefresh.listStyle}
+                  contentContainerStyle={styles.listContent}
+                  onScroll={pullRefresh.onScroll}
+                  onScrollEndDrag={pullRefresh.onRelease}
+                  onMomentumScrollEnd={pullRefresh.onRelease}
+                  scrollEventThrottle={16}
+              />
+            </View>
+        ) : (
+            <View style={styles.emptyState}>
+              <Icon name="message-circle" size={64} color="#D1D5DB" />
+              <Text style={styles.emptyStateTitle}>
+                {searchQuery ? 'No conversations found' : 'No messages yet'}
+              </Text>
+              <Text style={styles.emptyStateText}>
+                {searchQuery
+                    ? 'Try searching for something else'
+                    : 'Start browsing the marketplace and message sellers'}
+              </Text>
+              {!searchQuery && (
+                  <TouchableOpacity
+                      style={styles.browseButton}
+                      onPress={() => router.push('/marketplace')}
+                  >
+                    <Text style={styles.browseButtonText}>Browse Marketplace</Text>
+                  </TouchableOpacity>
+              )}
+            </View>
+        )}
+      </View>
   );
 }
 
+// styles unchanged...
 const styles = StyleSheet.create({
   container: {
     flex: 1,

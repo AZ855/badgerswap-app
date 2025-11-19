@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -12,33 +12,52 @@ import {
 import { useLocalSearchParams } from 'expo-router';
 import { Feather as Icon } from '@expo/vector-icons';
 import { COLORS } from '../../../theme/colors';
-import { MOCK_MESSAGES } from '../mock/messages';
 import { usePullToRefresh } from '../../../hooks/usePullToRefresh';
-
-// Mock messages moved to ../mock/messages
+import { useAuth } from '../../auth/AuthProvider';
+import {
+  subscribeToMessages,
+  sendMessage as sendMessageToFirestore,
+  clearUnread,
+} from '../api';
 
 export default function ChatScreen() {
+  const { user } = useAuth();
   const params = useLocalSearchParams();
-  const userName = params.userName as string || 'User';
-  
-  const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState(MOCK_MESSAGES);
 
-  const handleRefreshMessages = useCallback(() => {
-    return new Promise<void>((resolve) => {
-      setTimeout(() => {
-        setMessages((prev) => {
-          const incoming = {
-            id: Date.now(),
-            text: 'New replies synced from server.',
-            sender: 'other' as const,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          };
-          return [incoming, ...prev].slice(0, 60);
-        });
-        resolve();
-      }, 600);
+  const threadId = params.threadId as string;
+  const partnerName = params.partnerName as string || 'User';
+  const itemName = params.itemName as string || 'Item';
+
+  const [message, setMessage] = useState('');
+  const [messages, setMessages] = useState<any[]>([]);
+
+  // 🔥 Load messages in real time
+  useEffect(() => {
+    if (!threadId || !user) return;
+
+    // Clear unread count when entering chat
+    clearUnread(threadId, user.uid);
+
+    // Real-time subscription
+    const unsub = subscribeToMessages(threadId, (msgs: any[]) => {
+      const formatted = msgs.map((m: any) => ({
+        id: m.id,
+        text: m.text,
+        sender: m.senderId === user.uid ? 'me' : 'other',
+        time: m.createdAt?.toDate
+            ? m.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : '',
+      }));
+
+      setMessages(formatted);
     });
+
+    return () => unsub();
+  }, [threadId, user]);
+
+  // Pull-to-refresh (fires instantly because Firestore is real-time)
+  const handleRefreshMessages = useCallback(() => {
+    return new Promise<void>((resolve) => setTimeout(() => resolve(), 300));
   }, []);
 
   const messageRefresh = usePullToRefresh({
@@ -46,102 +65,98 @@ export default function ChatScreen() {
     indicatorOffset: 4,
   });
 
-  const sendMessage = () => {
-    if (message.trim()) {
-      setMessages([
-        ...messages,
-        {
-          id: messages.length + 1,
-          text: message,
-          sender: 'me',
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        },
-      ]);
-      setMessage('');
-    }
+  // 🔥 Send message to Firestore
+  const sendMessage = async () => {
+    if (!message.trim() || !threadId) return;
+
+    await sendMessageToFirestore(threadId, user!.uid, message.trim());
+    setMessage('');
   };
 
   const renderMessage = ({ item }: any) => (
-    <View
-      style={[
-        styles.messageContainer,
-        item.sender === 'me' ? styles.myMessageContainer : styles.otherMessageContainer,
-      ]}
-    >
       <View
-        style={[
-          styles.messageBubble,
-          item.sender === 'me' ? styles.myMessage : styles.otherMessage,
-        ]}
-      >
-        <Text
           style={[
-            styles.messageText,
-            item.sender === 'me' && styles.myMessageText,
+            styles.messageContainer,
+            item.sender === 'me' ? styles.myMessageContainer : styles.otherMessageContainer,
           ]}
+      >
+        <View
+            style={[
+              styles.messageBubble,
+              item.sender === 'me' ? styles.myMessage : styles.otherMessage,
+            ]}
         >
-          {item.text}
-        </Text>
+          <Text
+              style={[
+                styles.messageText,
+                item.sender === 'me' && styles.myMessageText,
+              ]}
+          >
+            {item.text}
+          </Text>
+        </View>
+        <Text style={styles.timeText}>{item.time}</Text>
       </View>
-      <Text style={styles.timeText}>{item.time}</Text>
-    </View>
   );
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-      keyboardVerticalOffset={90}
-    >
-      {/* Header with item info */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{userName.split(' ').map(n => n[0]).join('')}</Text>
+      <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.container}
+          keyboardVerticalOffset={90}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {partnerName.split(' ').map(n => n[0]).join('')}
+              </Text>
+            </View>
+
+            <View>
+              <Text style={styles.partnerName}>{partnerName}</Text>
+              <Text style={styles.itemName}>📦 {itemName}</Text>
+            </View>
           </View>
-          <View>
-            <Text style={styles.partnerName}>{userName}</Text>
-            <Text style={styles.itemName}>📚 Calculus Textbook</Text>
-          </View>
+          <TouchableOpacity>
+            <Icon name="more-vertical" size={24} color="#374151" />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity>
-          <Icon name="more-vertical" size={24} color="#374151" />
-        </TouchableOpacity>
-      </View>
 
-      {/* Messages */}
-      <View style={styles.messagesWrapper}>
-        {messageRefresh.indicator}
-        <Animated.FlatList
-          data={messages}
-          renderItem={renderMessage}
-          keyExtractor={(item) => item.id.toString()}
-          style={messageRefresh.listStyle}
-          contentContainerStyle={styles.messagesContainer}
-          onScroll={messageRefresh.onScroll}
-          onScrollEndDrag={messageRefresh.onRelease}
-          onMomentumScrollEnd={messageRefresh.onRelease}
-          scrollEventThrottle={16}
-          inverted={false}
-          showsVerticalScrollIndicator={false}
-          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-        />
-      </View>
+        {/* Messages */}
+        <View style={styles.messagesWrapper}>
+          {messageRefresh.indicator}
+          <Animated.FlatList
+              data={messages}
+              renderItem={renderMessage}
+              keyExtractor={(item) => item.id.toString()}
+              style={messageRefresh.listStyle}
+              contentContainerStyle={styles.messagesContainer}
+              onScroll={messageRefresh.onScroll}
+              onScrollEndDrag={messageRefresh.onRelease}
+              onMomentumScrollEnd={messageRefresh.onRelease}
+              scrollEventThrottle={16}
+              inverted={false}
+              showsVerticalScrollIndicator={false}
+              maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+          />
+        </View>
 
-      {/* Input */}
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder="Type a message..."
-          value={message}
-          onChangeText={setMessage}
-          multiline
-        />
-        <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
-          <Icon name="send" size={20} color={COLORS.white} />
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+        {/* Input */}
+        <View style={styles.inputContainer}>
+          <TextInput
+              style={styles.input}
+              placeholder="Type a message..."
+              value={message}
+              onChangeText={setMessage}
+              multiline
+          />
+          <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
+            <Icon name="send" size={20} color={COLORS.white} />
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
   );
 }
 
