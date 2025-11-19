@@ -23,8 +23,10 @@ export default function MarketplaceScreen() {
   const [debouncedQ, setDebouncedQ] = useState('');
   const [refreshTick, setRefreshTick] = useState(0);
   const t = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Pair each refresh gesture with a resolver so the pull-to-refresh indicator finishes only after Firestore returns.
   const pendingRefreshResolvers = useRef<(() => void)[]>([]);
 
+  // ViewModel hook encapsulates marketplace data fetching + filtering so this screen can stay presentational.
   const { items, loading, error } = useListings({
     search: debouncedQ,
     category: selected,
@@ -55,6 +57,7 @@ export default function MarketplaceScreen() {
     });
   }, []);
 
+  // Reuse the shared pull-to-refresh hook so gesture + indicator behavior stays consistent across screens.
   const pullRefresh = usePullToRefresh({
     onRefresh: handleRefresh,
     indicatorOffset: 8,

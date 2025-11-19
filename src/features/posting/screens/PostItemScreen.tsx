@@ -54,6 +54,7 @@ export default function PostItemScreen() {
   const [price, setPrice] = useState('');
   const [description, setDescription] = useState('');
   type ListingImage = { id: string; localUri: string; remoteUrl?: string };
+  // ListingImage view-model keeps multi-photo selections + uploads staged locally before they touch Cloudinary.
   const [images, setImages] = useState<ListingImage[]>([]);
   const [location, setLocation] = useState('');
   const [showLocationSearch, setShowLocationSearch] = useState(false);
@@ -79,6 +80,7 @@ export default function PostItemScreen() {
     }).start();
   }, [isFormValid, posting, actionsAnim]);
 
+  // Keep campus pickup suggestions searchable so users can quickly snap to a known building or hall.
   const filteredLocations = SUGGESTED_LOCATIONS.filter((loc) =>
     loc.toLowerCase().includes(locationSearch.toLowerCase())
   );
@@ -158,6 +160,7 @@ export default function PostItemScreen() {
     ]);
   };
 
+  // Basic client-side validation prevents wasted uploads + Firestore writes.
   const ensureFormReady = () => {
     if (!title.trim()) {
       Alert.alert('Missing Info', 'Please enter a title');
@@ -223,6 +226,7 @@ export default function PostItemScreen() {
     }
     setPosting(true);
     try {
+      // publishListing handles Cloudinary uploads + Firestore write so this screen just builds a clean payload.
       const listing = await publishListing({
         title: title.trim(),
         price: Number(price),

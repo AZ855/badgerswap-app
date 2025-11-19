@@ -7,6 +7,7 @@ export type Category =
   | 'kitchen'
   | 'other';
 
+// Shared item contract keeps marketplace browsing, posting, and backend writes in sync.
 export interface Item {
   id: string;
   title: string;

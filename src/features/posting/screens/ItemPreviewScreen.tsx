@@ -1,19 +1,19 @@
+import { Feather as Icon } from '@expo/vector-icons';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
+  Alert,
+  Dimensions,
+  Image,
   ScrollView,
   StyleSheet,
-  Dimensions,
-  Alert,
-  Image,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import { Feather as Icon } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS } from '../../../theme/colors';
 import { auth } from '../../../lib/firebase';
+import { COLORS } from '../../../theme/colors';
 import type { Category, Item } from '../../marketplace/types';
 import { publishListing, type ListingImageSource } from '../publishListing';
 
@@ -46,6 +46,7 @@ export default function ItemPreviewScreen() {
   const insets = useSafeAreaInsets();
   const [posting, setPosting] = useState(false);
 
+  // Deserialize the PostItem view-model payload so preview renders exactly what will be published.
   const payload = useMemo(
     () => parsePayload(params.payload),
     [params.payload]
@@ -104,6 +105,7 @@ export default function ItemPreviewScreen() {
     }
     setPosting(true);
     try {
+      // Reuse the same publishListing pipeline here so preview and edit share one backend integration path.
       const listing = await publishListing({
         title: payload.title,
         price: priceValue,
@@ -289,6 +291,7 @@ export default function ItemPreviewScreen() {
   );
 }
 
+// Defensive parsing keeps preview resilient even if navigation params are missing or stale.
 function parsePayload(raw?: string | string[]): PreviewPayload {
   const source = Array.isArray(raw) ? raw[0] : raw;
   if (!source) return DEFAULT_PAYLOAD;
@@ -300,7 +303,7 @@ function parsePayload(raw?: string | string[]): PreviewPayload {
             localUri: typeof img?.localUri === 'string' ? img.localUri : null,
             remoteUrl: typeof img?.remoteUrl === 'string' ? img.remoteUrl : null,
           }))
-          .filter((img) => img.localUri || img.remoteUrl)
+          .filter((img: ListingImageSource) => img.localUri || img.remoteUrl)
       : [];
 
     return {

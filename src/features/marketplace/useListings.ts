@@ -32,6 +32,7 @@ export function useListings(options: UseListingsOptions = {}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Establish a single Firestore subscription that maps raw documents into our Item domain model.
   useEffect(() => {
     setLoading(true);
     const constraints: QueryConstraint[] = [orderBy('postedAt', 'desc')];
@@ -59,6 +60,7 @@ export function useListings(options: UseListingsOptions = {}) {
     return unsubscribe;
   }, [limit, refreshKey]);
 
+  // Apply lightweight client-side filtering instead of requerying Firestore on every keystroke.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return items.filter((item) => {
@@ -71,6 +73,7 @@ export function useListings(options: UseListingsOptions = {}) {
   return { items: filtered, loading, error };
 }
 
+// Co-located mapper keeps Firestore-specific knowledge out of UI files and enforces MVVM data flow.
 export function mapListingFromDoc(id: string, data: ListingDoc): Item {
   const postedDate =
     data.postedAt instanceof Timestamp ? data.postedAt.toDate() : new Date();

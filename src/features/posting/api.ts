@@ -13,6 +13,7 @@ export interface NewListingInput {
   sellerName: string;
 }
 
+// Centralizes the Firestore write so UI screens just pass normalized data + a user id.
 export async function createListing(input: NewListingInput, userId: string): Promise<Item> {
   const docRef = await addDoc(collection(db, 'listings'), {
     title: input.title,
