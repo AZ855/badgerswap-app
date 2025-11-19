@@ -15,6 +15,7 @@ export default function BottomNav() {
   const [reduceMotion, setReduceMotion] = useState(false);
   const lastPressRef = useRef<number>(0);
 
+  // All bottom tabs live here so routing + labels stay in one place
   const tabs = useMemo(
     () => [
       { key: 'marketplace' as TabKey, label: 'Home', icon: 'home' as const, href: '/marketplace' as const },
@@ -53,6 +54,7 @@ export default function BottomNav() {
     'profile': new Animated.Value(6),
   }).current;
 
+  // Respect OS accessibility settings for reduced motion
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
   }, []);
@@ -95,6 +97,7 @@ export default function BottomNav() {
 
   const bottomPadding = Math.max(12, insets.bottom);
 
+  // Debounce taps to avoid double navigation + fire light haptics
   const handlePress = (href: TabHref, label: string) => {
     const now = Date.now();
     const d = now - (lastPressRef.current || 0);
