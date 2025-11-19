@@ -1,3 +1,4 @@
+// Thin wrapper over Cloudinary unsigned uploads; keeps credentials in .env and exposes a single helper.
 const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME!;
 const UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET!;
 
