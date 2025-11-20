@@ -1,3 +1,4 @@
+// Centralized Firebase bootstrap so every feature imports the same app/auth/db instances.
 import { getReactNativePersistence, initializeAuth } from '@firebase/auth/dist/rn/index.js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApps, initializeApp } from 'firebase/app';
@@ -42,6 +43,7 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID!,
 };
 
+// Reuse the cached instance when Fast Refresh reloads the bundle.
 const existingApps = getApps();
 const app = existingApps.length ? existingApps[0] : initializeApp(firebaseConfig);
 
@@ -49,6 +51,7 @@ const app = existingApps.length ? existingApps[0] : initializeApp(firebaseConfig
 export const firebaseApp = app;
 
 let authInstance: Auth;
+// Use secure persistence on native to keep auth state alive while remaining compatible with Expo web builds.
 if (Platform.OS === 'web') {
   authInstance = getAuth(app);
 } else {
@@ -88,4 +91,3 @@ export {
   updateProfile,
   where, type User
 };
-

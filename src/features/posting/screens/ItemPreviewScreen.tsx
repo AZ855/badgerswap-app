@@ -50,6 +50,7 @@ export default function ItemPreviewScreen() {
   const insets = useSafeAreaInsets();
   const [posting, setPosting] = useState(false);
 
+  // Deserialize the PostItem view-model payload so preview renders exactly what will be published.
   const payload = useMemo(
     () => parsePayload(params.payload),
     [params.payload]
@@ -110,6 +111,7 @@ export default function ItemPreviewScreen() {
     }
     setPosting(true);
     try {
+      // Reuse the same publishListing pipeline here so preview and edit share one backend integration path.
       const listing = await publishListing({
         title: payload.title,
         price: priceValue,
@@ -296,28 +298,20 @@ export default function ItemPreviewScreen() {
   );
 }
 
+// Defensive parsing keeps preview resilient even if navigation params are missing or stale.
 function parsePayload(raw?: string | string[]): PreviewPayload {
   const source = Array.isArray(raw) ? raw[0] : raw;
   if (!source) return DEFAULT_PAYLOAD;
   try {
-    // const parsed = JSON.parse(source);
-    // const images: ListingImageSource[] = Array.isArray(parsed.images)
-    //   ? parsed.images
-    //       .map((img: any) => ({
-    //         localUri: typeof img?.localUri === 'string' ? img.localUri : null,
-    //         remoteUrl: typeof img?.remoteUrl === 'string' ? img.remoteUrl : null,
-    //       }))
-    //       .filter((img) => img.localUri || img.remoteUrl)
-    //   : [];
-    
-    const parsed: RawPreviewPayload = JSON.parse(source);
-    const parsedImages = Array.isArray(parsed.images) ? parsed.images : [];
-    const images: ListingImageSource[] = parsedImages
-      .map((img) => ({
-        localUri: typeof img?.localUri === 'string' ? img.localUri : null,
-        remoteUrl: typeof img?.remoteUrl === 'string' ? img.remoteUrl : null,
-      }))
-      .filter((img) => img.localUri || img.remoteUrl);
+    const parsed = JSON.parse(source);
+    const images: ListingImageSource[] = Array.isArray(parsed.images)
+      ? parsed.images
+          .map((img: any) => ({
+            localUri: typeof img?.localUri === 'string' ? img.localUri : null,
+            remoteUrl: typeof img?.remoteUrl === 'string' ? img.remoteUrl : null,
+          }))
+          .filter((img: ListingImageSource) => img.localUri || img.remoteUrl)
+      : [];
 
     return {
       title: typeof parsed.title === 'string' && parsed.title.length > 0 ? parsed.title : DEFAULT_PAYLOAD.title,

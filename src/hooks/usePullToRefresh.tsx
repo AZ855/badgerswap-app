@@ -31,6 +31,7 @@ export function usePullToRefresh(options: UsePullToRefreshOptions) {
     outputRange: ['0deg', '360deg'],
   });
 
+  // Manual spinner loop so we are not tied to ActivityIndicator timing
   useEffect(() => {
     if (refreshing) {
       spinnerLoop.current?.stop();
@@ -52,11 +53,13 @@ export function usePullToRefresh(options: UsePullToRefreshOptions) {
     };
   }, [refreshing, spinnerRotation]);
 
+  // Rubber-band ease closely matches iOS physics
   const rubberBand = useCallback((distance: number) => {
     const clamped = Math.min(MAX_PULL_DISTANCE, Math.max(0, distance));
     return RUBBER_BAND_COEFF * (1 - Math.exp(-clamped / RUBBER_BAND_COEFF));
   }, []);
 
+  // Collapse animation resets every bit of state after refresh ends
   const collapseToOrigin = useCallback(
     (onEnd?: () => void) => {
       Animated.parallel([
@@ -82,6 +85,7 @@ export function usePullToRefresh(options: UsePullToRefreshOptions) {
     [pullDistance, translateY]
   );
 
+  // Pin in place so the user sees a steady indicator while fetching
   const pinIndicator = useCallback(() => {
     Animated.parallel([
       Animated.timing(translateY, {
@@ -99,6 +103,7 @@ export function usePullToRefresh(options: UsePullToRefreshOptions) {
     ]).start();
   }, [pullDistance, translateY]);
 
+  // Entry point when the threshold is hit
   const triggerRefresh = useCallback(async () => {
     if (refreshing) return;
     setRefreshing(true);

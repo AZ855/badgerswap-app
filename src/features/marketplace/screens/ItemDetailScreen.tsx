@@ -43,6 +43,7 @@ export default function ItemDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
 
+  // Live Firestore subscription keeps the detail view fresh during edits
   useEffect(() => {
     if (!itemId) {
       setError('Listing not found.');
@@ -116,6 +117,7 @@ export default function ItemDetailScreen() {
   }, [item?.sellerId]);
 
 
+  // Keep heart state in sync with the user's favorites collection
   useEffect(() => {
     if (
       !user?.uid ||
@@ -153,6 +155,7 @@ export default function ItemDetailScreen() {
   const postedDate =
     item?.postedAt != null ? formatTimeAgo(item.postedAt) : 'Just now';
 
+  // Central toggle handler so the UI stays atomic
   const toggleFavorite = async () => {
     if (!item || isOwnListing) return;
     if (!user?.uid) {
@@ -388,6 +391,7 @@ function formatTimeAgo(iso: string) {
   return `${days} days ago`;
 }
 
+// Lightweight carousel that mimics the native gallery feel
 function Carousel({ images, currentIndex, setIndex }: { images: (string | null)[]; currentIndex: number; setIndex: (i: number) => void; }) {
   const { width } = Dimensions.get('window');
   const scrollX = useRef(new Animated.Value(0)).current;

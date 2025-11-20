@@ -23,6 +23,7 @@ type RowProps = {
   right?: React.ReactNode;
 };
 
+// Tiny helper row keeps the screen markup tidy
 function Row({ icon, title, subtitle, href, onPress, right }: RowProps) {
   const content = (
     <View style={styles.rowInner}>
@@ -53,6 +54,7 @@ function Row({ icon, title, subtitle, href, onPress, right }: RowProps) {
 }
 
 export default function SettingsScreen() {
+  // Shared logout alert path so we don't duplicate logic elsewhere
   const handleConfirmLogout = async () => {
     try {
       await signOutUW();

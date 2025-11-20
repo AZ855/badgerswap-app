@@ -20,6 +20,7 @@ export interface PublishListingInput {
   userId: string;
 }
 
+// High-level command that uploads photos (Cloudinary) and persists the final listing (Firestore).
 export async function publishListing(input: PublishListingInput): Promise<Item> {
   const uploadedUrls = await Promise.all(
     input.images.map(async (image) => {
