@@ -257,21 +257,16 @@ export default function ProfileScreen() {
 
   // Keep collapse state stable
   useEffect(() => {
-    if (!collapseEnabled) {
-      if (isCollapsed) {
-        setIsCollapsed(false);
-      }
+    if (!collapseEnabled && isCollapsed) {
+      setIsCollapsed(false);
       scrollY.setValue(0);
-      return;
+      if (listRef.current?.scrollToOffset) {
+        try {
+          listRef.current.scrollToOffset({ offset: 0, animated: false });
+        } catch {}
+      }
     }
-    const target = isCollapsed ? COLLAPSE_Y : 0;
-    scrollY.setValue(target);
-    if (listRef.current?.scrollToOffset) {
-      try {
-        listRef.current.scrollToOffset({ offset: target, animated: false });
-      } catch {}
-    }
-  }, [tab, view, collapseEnabled, isCollapsed, scrollY]);
+  }, [collapseEnabled, isCollapsed, scrollY]);
 
   // Listen to user doc for phone (realtime)
   useEffect(() => {
@@ -381,7 +376,6 @@ export default function ProfileScreen() {
           onLayout={(e) => setListHeight(e.nativeEvent.layout.height)}
           onContentSizeChange={(_, h) => setContentHeight(h)}
           scrollEventThrottle={16}
-          contentOffset={{ y: isCollapsed ? COLLAPSE_Y : 0, x: 0 }}
           ListEmptyComponent={
             isFavoritesTab ? (
               <View style={styles.emptyWrap}>
