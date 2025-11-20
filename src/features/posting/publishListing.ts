@@ -16,6 +16,7 @@ export interface PublishListingInput {
   location: string;
   images: ListingImageSource[];
   sellerName: string;
+  sellerPhotoURL?: string | null;
   userId: string;
 }
 
@@ -43,6 +44,7 @@ export async function publishListing(input: PublishListingInput): Promise<Item> 
       location: input.location,
       imageUrls: uploadedUrls,
       sellerName: input.sellerName,
+      sellerPhotoURL: input.sellerPhotoURL,
     },
     input.userId
   );

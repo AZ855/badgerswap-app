@@ -1,29 +1,29 @@
-import { getOrCreateThread } from '../../chat/api';
+import { Feather } from '@expo/vector-icons';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
+  Animated,
   Dimensions,
   Image,
-  Animated,
-  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
-import { COLORS } from '../../../theme/colors';
 import { db, doc, onSnapshot } from '../../../lib/firebase';
-import type { Item } from '../types';
-import { mapListingFromDoc } from '../useListings';
+import { COLORS } from '../../../theme/colors';
 import { useAuth } from '../../auth/AuthProvider';
+import { getOrCreateThread } from '../../chat/api';
 import {
   addFavoriteListing,
   removeFavoriteListing,
   subscribeFavoriteListing,
 } from '../../favorites/api';
+import type { Item } from '../types';
+import { mapListingFromDoc } from '../useListings';
 
 const { width } = Dimensions.get('window');
 
@@ -34,6 +34,11 @@ export default function ItemDetailScreen() {
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [item, setItem] = useState<Item | null>(null);
+  const [sellerProfile, setSellerProfile] = useState<{
+    name?: string;
+    photoURL?: string | null;
+    verified?: boolean;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
@@ -71,6 +76,47 @@ export default function ItemDetailScreen() {
     return unsubscribe;
   }, [itemId]);
 
+  // Live seller profile (photo + name) so updates propagate to listings
+  useEffect(() => {
+    if (!item?.sellerId) {
+      setSellerProfile(null);
+      return;
+    }
+
+    const sellerRef = doc(db, 'users', item.sellerId);
+    const unsubscribe = onSnapshot(
+      sellerRef,
+      (snap) => {
+        if (!snap.exists()) {
+          setSellerProfile(null);
+          return;
+        }
+
+        const data = snap.data() as any;
+        const name =
+          typeof data.displayName === 'string' && data.displayName.trim().length > 0
+            ? data.displayName.trim()
+            : undefined;
+        const photoURL =
+          typeof data.photoURL === 'string' && data.photoURL.trim().length > 0
+            ? data.photoURL.trim()
+            : null;
+
+        setSellerProfile({
+          name,
+          photoURL,
+          verified: Boolean(data.verified),
+        });
+      },
+      (err) => {
+        console.error('Failed to load seller profile', err);
+      }
+    );
+
+    return unsubscribe;
+  }, [item?.sellerId]);
+
+
   // Keep heart state in sync with the user's favorites collection
   useEffect(() => {
     if (
@@ -94,8 +140,17 @@ export default function ItemDetailScreen() {
   const MAX_NAME_CHARS = 11; // Target length equal to "Johnny Hong"
   const truncateName = (name: string, max: number) =>
     name.length > max ? `${name.slice(0, Math.max(0, max - 3))}...` : name;
-  const resolvedSellerName = item?.seller?.name ?? 'Seller';
+  //const resolvedSellerName = item?.seller?.name ?? 'Seller';
+  const resolvedSellerName = sellerProfile?.name ?? item?.seller?.name ?? 'Seller';
   const sellerName = truncateName(resolvedSellerName, MAX_NAME_CHARS);
+  const sellerPhotoURL = sellerProfile?.photoURL ?? null;
+  const sellerVerified = sellerProfile?.verified ?? item?.seller?.verified ?? false;
+  const sellerInitials = resolvedSellerName
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
   const isOwnListing = Boolean(user?.uid && item?.sellerId === user.uid);
   const postedDate =
     item?.postedAt != null ? formatTimeAgo(item.postedAt) : 'Just now';
@@ -180,21 +235,26 @@ export default function ItemDetailScreen() {
           <View style={styles.sellerCard}>
             <View style={styles.sellerLeft}>
               <View style={styles.sellerAvatar}>
-                <Text style={styles.sellerAvatarText}>
+                {/* <Text style={styles.sellerAvatarText}>
                   {sellerName
                     .split(' ')
                     .map((n) => n[0])
                     .join('')
                     .slice(0, 2)
                     .toUpperCase()}
-                </Text>
+                </Text> */}
+                {sellerPhotoURL ? (
+                  <Image source={{ uri: sellerPhotoURL }} style={styles.sellerAvatarImage} />
+                ) : (
+                  <Text style={styles.sellerAvatarText}>{sellerInitials}</Text>
+                )}
               </View>
               <View>
                 <View style={styles.sellerNameContainer}>
                   <Text style={styles.sellerName} numberOfLines={1} ellipsizeMode="clip">
                     {sellerName}
                   </Text>
-                  {item.seller?.verified && (
+                  {sellerVerified && (
                     <View style={{ marginLeft: 6, flexShrink: 0 }}>
                       <Feather name="check-circle" size={16} color={COLORS.primary} />
                     </View>
@@ -546,6 +606,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  sellerAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 24,
   },
   sellerAvatarText: {
     color: COLORS.white,

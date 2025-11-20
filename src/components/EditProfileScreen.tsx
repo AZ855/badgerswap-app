@@ -16,7 +16,20 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '../features/auth/AuthProvider';
-import { db, doc, getDoc, updateDoc, updateProfile } from '../lib/firebase';
+import { uploadImageAsync } from '../features/posting/cloudinary';
+// import { db, doc, getDoc, updateDoc, updateProfile } from '../lib/firebase';
+import {
+  collection,
+  db,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  updateDoc,
+  updateProfile,
+  where,
+  writeBatch,
+} from '../lib/firebase';
 import { COLORS } from '../theme/colors';
 
 export default function EditProfileScreen() {
@@ -78,6 +91,34 @@ export default function EditProfileScreen() {
     loadProfile();
   }, [user]);
 
+  const syncSellerFieldsToListings = async (
+    userId: string,
+    sellerName: string,
+    sellerPhotoURL: string | null
+  ) => {
+    try {
+      const listingsQuery = query(
+        collection(db, 'listings'),
+        where('sellerId', '==', userId)
+      );
+      const snap = await getDocs(listingsQuery);
+
+      if (snap.empty) return;
+
+      const batch = writeBatch(db);
+      snap.forEach((docSnap) => {
+        batch.update(docSnap.ref, {
+          sellerName,
+          sellerPhotoURL: sellerPhotoURL ?? null,
+        });
+      });
+
+      await batch.commit();
+    } catch (e) {
+      console.warn('Failed to sync listings with profile changes', e);
+    }
+  };
+
   const handlePickPhoto = async () => {
     if (!user) return;
 
@@ -134,15 +175,31 @@ export default function EditProfileScreen() {
     try {
       setSaving(true);
 
+      let nextPhotoURL = trimmedPhoto;
+      const photoChanged = trimmedPhoto !== trimmedInitialPhoto;
+
+      if (photoChanged && trimmedPhoto) {
+        const isRemote = /^https?:\/\//i.test(trimmedPhoto);
+
+        nextPhotoURL = isRemote
+          ? trimmedPhoto
+          : await uploadImageAsync(trimmedPhoto);
+      }
+
       // Update Firebase Auth profile (name + photo)
       const authUpdates: { displayName?: string; photoURL?: string | null } =
         {};
       if (trimmedName !== initialDisplayName) {
         authUpdates.displayName = trimmedName;
       }
-      if (trimmedPhoto !== trimmedInitialPhoto) {
-        authUpdates.photoURL = trimmedPhoto;
+      // if (trimmedPhoto !== trimmedInitialPhoto) {
+      //   authUpdates.photoURL = trimmedPhoto;
+      // }
+
+      if (photoChanged) {
+        authUpdates.photoURL = nextPhotoURL;
       }
+
       if (Object.keys(authUpdates).length > 0) {
         await updateProfile(user, authUpdates);
       }
@@ -153,10 +210,19 @@ export default function EditProfileScreen() {
         displayName: trimmedName,
         phone: trimmedPhone || null,
       };
-      if (trimmedPhoto !== trimmedInitialPhoto) {
-        updateData.photoURL = trimmedPhoto;
+      // if (trimmedPhoto !== trimmedInitialPhoto) {
+      //   updateData.photoURL = trimmedPhoto;
+      // }
+
+      if (photoChanged) {
+        updateData.photoURL = nextPhotoURL;
       }
+
       await updateDoc(userRef, updateData);
+
+      if (photoChanged || trimmedName !== initialDisplayName) {
+        await syncSellerFieldsToListings(user.uid, trimmedName, nextPhotoURL ?? null);
+      }
 
       Alert.alert('Profile updated', 'Your changes have been saved.', [
         { text: 'OK', onPress: () => router.back() },
