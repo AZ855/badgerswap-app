@@ -95,8 +95,15 @@ export default function ProfileScreen() {
   const listData = tab === 'favorites' ? favorites : listings;
   const isFavoritesTab = tab === 'favorites';
   const hasEnoughItemsForCollapse = listData.length >= MIN_COLLAPSE_ITEMS;
+  const verticalSlack = Math.max(0, contentHeight - listHeight);
+  const rawSpacerNeed =
+    hasEnoughItemsForCollapse && verticalSlack < COLLAPSE_Y + 32;
+  const spacerHeight =
+    !isCollapsed && rawSpacerNeed
+      ? Math.max(0, COLLAPSE_Y + 32 - verticalSlack)
+      : 0;
   const collapseEnabled =
-    hasEnoughItemsForCollapse && contentHeight - listHeight > COLLAPSE_Y;
+    hasEnoughItemsForCollapse && verticalSlack + spacerHeight > COLLAPSE_Y;
 
   const topPad = 8;
   const bottomPad = insets.bottom + 120;
@@ -311,9 +318,6 @@ export default function ProfileScreen() {
     },
     [pullRefresh, collapseEnabled, isCollapsed, scrollY]
   );
-
-  const spacerHeight =
-    hasEnoughItemsForCollapse && !isCollapsed ? 48 : 0;
 
   return (
     <View style={styles.container}>
