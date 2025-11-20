@@ -73,6 +73,7 @@ export default function ProfileScreen() {
   const [view, setView] = useState<'list' | 'grid'>('list');
 
   const COLLAPSE_Y = 120;
+  const MIN_COLLAPSE_ITEMS = 5;
   const scrollY = useRef(new Animated.Value(0)).current;
   const collapseProgress = scrollY.interpolate({
     inputRange: [0, COLLAPSE_Y],
@@ -93,7 +94,9 @@ export default function ProfileScreen() {
   const favorites: Item[] = useMemo(() => favoriteItems, [favoriteItems]);
   const listData = tab === 'favorites' ? favorites : listings;
   const isFavoritesTab = tab === 'favorites';
-  const collapseEnabled = contentHeight - listHeight > COLLAPSE_Y;
+  const hasEnoughItemsForCollapse = listData.length >= MIN_COLLAPSE_ITEMS;
+  const collapseEnabled =
+    hasEnoughItemsForCollapse && contentHeight - listHeight > COLLAPSE_Y;
 
   const topPad = 8;
   const bottomPad = insets.bottom + 120;
@@ -293,15 +296,24 @@ export default function ProfileScreen() {
       pullRefresh.onScroll(e);
       const y = e.nativeEvent.contentOffset.y;
       if (!collapseEnabled) {
-        scrollY.setValue(0);
+        scrollY.setValue(Math.max(0, y));
+        if (isCollapsed) setIsCollapsed(false);
         return;
       }
       scrollY.setValue(Math.max(0, y));
-      const next = y > 80;
-      if (next !== isCollapsed) setIsCollapsed(next);
+      const shouldCollapse = y > 80;
+      const shouldExpand = y < 30;
+      if (!isCollapsed && shouldCollapse) {
+        setIsCollapsed(true);
+      } else if (isCollapsed && shouldExpand) {
+        setIsCollapsed(false);
+      }
     },
     [pullRefresh, collapseEnabled, isCollapsed, scrollY]
   );
+
+  const spacerHeight =
+    hasEnoughItemsForCollapse && !isCollapsed ? 48 : 0;
 
   return (
     <View style={styles.container}>
@@ -349,6 +361,9 @@ export default function ProfileScreen() {
           }
           ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
           ListHeaderComponent={<View style={{ height: 12 }} />}
+          ListFooterComponent={
+            spacerHeight ? <View style={{ height: spacerHeight }} /> : null
+          }
           style={pullRefresh.listStyle}
           contentContainerStyle={[
             {
