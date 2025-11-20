@@ -30,6 +30,10 @@ type PreviewPayload = {
   images: ListingImageSource[];
 };
 
+type RawPreviewPayload = Partial<PreviewPayload> & {
+  images?: (Partial<ListingImageSource>)[] | null;
+};
+
 const DEFAULT_PAYLOAD: PreviewPayload = {
   title: 'Untitled Item',
   price: '0',
@@ -86,6 +90,8 @@ export default function ItemPreviewScreen() {
     router.replace('/marketplace');
   };
 
+  const currentUserPhotoURL = auth.currentUser?.photoURL?.trim() || null;
+
   const viewListingAfterHome = (itemId: string) => {
     navigateHome();
     setTimeout(() => {
@@ -118,6 +124,7 @@ export default function ItemPreviewScreen() {
           auth.currentUser.displayName?.trim() ||
           auth.currentUser.email?.split('@')[0] ||
           'BadgerSwap Seller',
+        sellerPhotoURL: currentUserPhotoURL,
         userId: auth.currentUser.uid,
       });
 
