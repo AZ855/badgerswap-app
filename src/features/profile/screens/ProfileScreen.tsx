@@ -72,7 +72,7 @@ export default function ProfileScreen() {
   const [status, setStatus] = useState<'all' | 'available' | 'pending' | 'sold'>('all');
   const [view, setView] = useState<'list' | 'grid'>('list');
 
-  const COLLAPSE_Y = 120;
+  const COLLAPSE_Y = 80;
   const MIN_COLLAPSE_ITEMS = 5;
   const scrollY = useRef(new Animated.Value(0)).current;
   const collapseProgress = scrollY.interpolate({
@@ -97,13 +97,13 @@ export default function ProfileScreen() {
   const hasEnoughItemsForCollapse = listData.length >= MIN_COLLAPSE_ITEMS;
   const verticalSlack = Math.max(0, contentHeight - listHeight);
   const rawSpacerNeed =
-    hasEnoughItemsForCollapse && verticalSlack < COLLAPSE_Y + 32;
-  const spacerHeight =
-    !isCollapsed && rawSpacerNeed
-      ? Math.max(0, COLLAPSE_Y + 32 - verticalSlack)
-      : 0;
-  const collapseEnabled =
-    hasEnoughItemsForCollapse && verticalSlack + spacerHeight > COLLAPSE_Y;
+    hasEnoughItemsForCollapse && !isCollapsed && verticalSlack < COLLAPSE_Y + 32;
+  const spacerHeight = rawSpacerNeed
+    ? Math.max(0, COLLAPSE_Y + 32 - verticalSlack)
+    : 0;
+  // Once there are enough rows, we always allow collapsing;
+  // extra slack/spacer only affects how easy it is to reach the threshold.
+  const collapseEnabled = hasEnoughItemsForCollapse;
 
   const topPad = 8;
   const bottomPad = insets.bottom + 120;
@@ -303,8 +303,8 @@ export default function ProfileScreen() {
         return;
       }
       scrollY.setValue(Math.max(0, y));
-      const shouldCollapse = y > 80;
-      const shouldExpand = y < 30;
+      const shouldCollapse = y > COLLAPSE_Y;
+      const shouldExpand = y < COLLAPSE_Y / 4;
       if (!isCollapsed && shouldCollapse) {
         setIsCollapsed(true);
       } else if (isCollapsed && shouldExpand) {
