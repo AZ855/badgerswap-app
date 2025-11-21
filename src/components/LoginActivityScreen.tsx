@@ -1,47 +1,36 @@
-// src/features/profile/screens/LoginActivityScreen.tsx
-import React from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+// src/components/LoginActivityScreen.tsx
+import React, { useMemo } from 'react';
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../features/auth/AuthProvider';
+import { useLoginActivity } from '../features/auth/loginActivity';
 import { COLORS } from '../theme/colors';
 
-type ActivityItem = {
-  id: string;
-  device: string;
-  location: string;
-  time: string;
-  current?: boolean;
-};
-
-const MOCK_ACTIVITY: ActivityItem[] = [
-  {
-    id: '1',
-    device: 'iPhone 15 · BadgerSwap App',
-    location: 'Madison, WI, United States',
-    time: 'Just now (current session)',
-    current: true,
-  },
-  {
-    id: '2',
-    device: 'MacBook Pro · Chrome',
-    location: 'Madison, WI, United States',
-    time: 'Yesterday at 8:14 PM',
-  },
-  {
-    id: '3',
-    device: 'iPad · Safari',
-    location: 'Madison, WI, United States',
-    time: '2 days ago',
-  },
-];
 
 export default function LoginActivityScreen() {
   const { user } = useAuth();
+
+  const { entries, loading, error } = useLoginActivity(user?.uid);
+
+  const emptyMessage = useMemo(() => {
+    if (error) return 'Unable to load login activity right now.';
+    return 'No login activity recorded yet.';
+  }, [error]);
+
+  const data = useMemo(() => entries, [entries]);
+
+  if (!user) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorText}>Please sign in to view login activity.</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Login activity</Text>
       <Text style={styles.subtitle}>
-        See recent places where you are logged in to BadgerSwap.
+        See recent logins to your BadgerSwap account.
       </Text>
 
       <View style={styles.summaryBox}>
@@ -50,15 +39,21 @@ export default function LoginActivityScreen() {
       </View>
 
       <FlatList
-        data={MOCK_ACTIVITY}
+        data={data}
+        refreshing={loading}
+        onRefresh={() => {}}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
-        renderItem={({ item }) => (
+        ListEmptyComponent={() => (
+            <View style={styles.emptyState}>
+              {loading ? <ActivityIndicator /> : <Text style={styles.emptyText}>{emptyMessage}</Text>}
+            </View>
+          )}
+          renderItem={({ item, index }) => (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{item.device}</Text>
-            <Text style={styles.cardLine}>{item.location}</Text>
-            <Text style={styles.cardLine}>{item.time}</Text>
-            {item.current ? <Text style={styles.currentTag}>Current session</Text> : null}
+            <Text style={styles.cardLine}>{formatTimestamp(item.createdAt)}</Text>
+            {index === 0 && !loading ? <Text style={styles.currentTag}>Current session</Text> : null}
           </View>
         )}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
@@ -66,6 +61,17 @@ export default function LoginActivityScreen() {
     </View>
   );
 }
+
+function formatTimestamp(value: Date | null) {
+    if (!value) return 'Unknown time';
+    return value.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  }
+  
 
 const styles = StyleSheet.create({
   container: {
@@ -106,6 +112,14 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontWeight: '500',
   },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  emptyText: {
+    color: '#6B7280',
+    fontSize: 14,
+  },
   card: {
     backgroundColor: COLORS.white,
     paddingVertical: 12,
@@ -129,5 +143,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#10B981',
     fontWeight: '600',
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 16,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 14,
+    textAlign: 'center',
   },
 });

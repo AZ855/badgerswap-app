@@ -1,15 +1,16 @@
 import {
-    auth,
-    createUserWithEmailAndPassword,
-    db,
-    doc,
-    onAuthStateChanged,
-    serverTimestamp,
-    setDoc,
-    signInWithEmailAndPassword,
-    updateProfile,
-    type User,
+  auth,
+  createUserWithEmailAndPassword,
+  db,
+  doc,
+  onAuthStateChanged,
+  serverTimestamp,
+  setDoc,
+  signInWithEmailAndPassword,
+  updateProfile,
+  type User,
 } from '../../lib/firebase';
+import { logLoginActivity } from './loginActivity';
 
 const UW_EMAIL_RE = /^[a-z0-9._%+-]+@wisc\.edu$/i;
 
@@ -41,6 +42,13 @@ export async function signUpUW(
     createdAt: serverTimestamp(),
   });
 
+  // Record the initial login so the activity feed is populated immediately.
+  try {
+    await logLoginActivity(cred.user);
+  } catch (err) {
+    console.warn('Failed to log login activity after signup', err);
+  }
+
   return cred.user;
 }
 
@@ -54,6 +62,13 @@ export async function signInUW(
   }
 
   const cred = await signInWithEmailAndPassword(auth, normalized, password);
+
+  try {
+    await logLoginActivity(cred.user);
+  } catch (err) {
+    console.warn('Failed to log login activity', err);
+  }
+  
   return cred.user;
 }
 

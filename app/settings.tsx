@@ -135,12 +135,6 @@ export default function SettingsScreen() {
 
       {/* Login */}
       <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Login</Text>
-      <TouchableOpacity
-        style={styles.linkRow}
-        onPress={() => Alert.alert('Add account coming soon')}
-      >
-        <Text style={[styles.linkText, { color: '#2563EB' }]}>Add account</Text>
-      </TouchableOpacity>
       <TouchableOpacity style={styles.linkRow} onPress={logout}>
         <Text style={[styles.linkText, { color: '#DC2626' }]}>Log out</Text>
       </TouchableOpacity>
