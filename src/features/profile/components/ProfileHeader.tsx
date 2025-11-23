@@ -41,6 +41,7 @@ export default function ProfileHeader({
   const [badgeH, setBadgeH] = useState<number | null>(null);
   const [statsH, setStatsH] = useState<number | null>(null);
   const [editH, setEditH] = useState<number | null>(null);
+  const showEditButton = typeof onEdit === 'function';
   const toMax = (h: number | null) =>
     h == null ? undefined : p.interpolate({ inputRange: [0, 1], outputRange: [h, 0] });
   const toSpace = (px: number) =>
@@ -132,14 +133,16 @@ export default function ProfileHeader({
         </View>
       </Animated.View>
 
-      <Animated.View
-        onLayout={(e) => editH == null && setEditH(e.nativeEvent.layout.height)}
-        style={{ opacity: fadeOut, maxHeight: toMax(editH), overflow: 'hidden' }}
-      >
-        <TouchableOpacity style={styles.editBtn} onPress={onEdit}>
-          <Text style={styles.editBtnText}>Edit Profile</Text>
-        </TouchableOpacity>
-      </Animated.View>
+      {showEditButton && (
+        <Animated.View
+          onLayout={(e) => editH == null && setEditH(e.nativeEvent.layout.height)}
+          style={{ opacity: fadeOut, maxHeight: toMax(editH), overflow: 'hidden' }}
+        >
+          <TouchableOpacity style={styles.editBtn} onPress={onEdit}>
+            <Text style={styles.editBtnText}>Edit Profile</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
     </Animated.View>
   );
 }

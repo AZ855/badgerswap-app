@@ -58,7 +58,7 @@ export default function AccountCenterScreen() {
       <Row
         icon="activity"
         title="Login activity"
-        subtitle="Where you're logged in"
+        subtitle="Recent sign-ins"
         onPress={() => router.push('/login-activity')}
       />
 

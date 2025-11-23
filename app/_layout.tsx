@@ -112,6 +112,7 @@ function LayoutContent() {
         <Stack.Screen name="login-activity" options={{ title: 'Login activity' }} />
         <Stack.Screen name="settings" options={{ title: 'Settings and activity' }} />
         <Stack.Screen name="activity" options={{ title: 'Activity' }} />
+        <Stack.Screen name="seller-profile" options={{ headerShown: false }} />
       </Stack>
       {showNav && <BottomNav />}
     </>

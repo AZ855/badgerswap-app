@@ -1,7 +1,7 @@
 // app/settings.tsx
 import { Feather } from '@expo/vector-icons';
 import { Link, router } from 'expo-router';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -12,6 +12,8 @@ import {
   View,
 } from 'react-native';
 import { signOutUW } from '../src/features/auth/api';
+import { useAuth } from '../src/features/auth/AuthProvider';
+import { db, doc, onSnapshot } from '../src/lib/firebase';
 import { COLORS } from '../src/theme/colors';
 
 type RowProps = {
@@ -54,6 +56,35 @@ function Row({ icon, title, subtitle, href, onPress, right }: RowProps) {
 }
 
 export default function SettingsScreen() {
+
+  const { user } = useAuth();
+  const [isPrivate, setIsPrivate] = useState(false);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setIsPrivate(false);
+      return;
+    }
+
+    const userRef = doc(db, 'users', user.uid);
+    const unsubscribe = onSnapshot(
+      userRef,
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data() as { isPrivate?: boolean };
+          setIsPrivate(Boolean(data.isPrivate));
+        } else {
+          setIsPrivate(false);
+        }
+      },
+      (error) => {
+        console.warn('Failed to read privacy status', error);
+      }
+    );
+
+    return unsubscribe;
+  }, [user?.uid]);
+
   // Shared logout alert path so we don't duplicate logic elsewhere
   const handleConfirmLogout = async () => {
     try {
@@ -99,11 +130,6 @@ export default function SettingsScreen() {
 
       {/* How you use BadgerSwap */}
       <Text style={styles.sectionLabel}>How you use BadgerSwap</Text>
-      <Row
-        icon="bookmark"
-        title="Saved"
-        onPress={() => Alert.alert('Saved coming soon')}
-      />
       <Row icon="clock" title="Your activity" href="/activity" />
       <Row
         icon="bell"
@@ -116,8 +142,8 @@ export default function SettingsScreen() {
       <Row
         icon="lock"
         title="Account privacy"
-        right={<Text style={{ color: '#9CA3AF' }}>Public</Text>}
-        onPress={() => Alert.alert('Privacy coming soon')}
+        right={<Text style={{ color: '#9CA3AF' }}>{isPrivate ? 'Private' : 'Public'}</Text>}
+        href="/account-privacy"
       />
       <Row
         icon="slash"
@@ -135,12 +161,6 @@ export default function SettingsScreen() {
 
       {/* Login */}
       <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Login</Text>
-      <TouchableOpacity
-        style={styles.linkRow}
-        onPress={() => Alert.alert('Add account coming soon')}
-      >
-        <Text style={[styles.linkText, { color: '#2563EB' }]}>Add account</Text>
-      </TouchableOpacity>
       <TouchableOpacity style={styles.linkRow} onPress={logout}>
         <Text style={[styles.linkText, { color: '#DC2626' }]}>Log out</Text>
       </TouchableOpacity>

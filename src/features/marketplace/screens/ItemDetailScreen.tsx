@@ -273,7 +273,14 @@ export default function ItemDetailScreen() {
                 <Text style={styles.yourListingText}>Your Listing</Text>
               </View>
             ) : (
-              <TouchableOpacity style={styles.viewProfileButton}>
+              <TouchableOpacity
+                style={styles.viewProfileButton}
+                onPress={() =>
+                  item?.sellerId &&
+                  router.push({ pathname: '/seller-profile/[userId]', params: { userId: item.sellerId } })
+                }
+                disabled={!item?.sellerId}
+              >
                 <Text style={styles.viewProfileText}>View Profile</Text>
               </TouchableOpacity>
             )}
