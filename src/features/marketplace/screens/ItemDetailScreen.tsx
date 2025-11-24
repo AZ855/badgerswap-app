@@ -305,10 +305,12 @@ export default function ItemDetailScreen() {
           </View>
 
           {/* Report Button */}
-          <TouchableOpacity style={styles.reportButton}>
-            <Feather name="flag" size={16} color={COLORS.primary} />
-            <Text style={styles.reportText}>Report this listing</Text>
-          </TouchableOpacity>
+          {!isOwnListing && (
+            <TouchableOpacity style={styles.reportButton}>
+              <Feather name="flag" size={16} color={COLORS.primary} />
+              <Text style={styles.reportText}>Report this listing</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
 
