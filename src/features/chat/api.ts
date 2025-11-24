@@ -1,3 +1,14 @@
+/**
+ * =====================================================================
+ *  BadgerSwap Chat API
+ * =====================================================================
+ *
+ *  This file contains ALL Firestore chat logic used in the application.
+ */
+
+// ---------------------------------------------------------------------
+// Firestore imports & setup
+// ---------------------------------------------------------------------
 import {
     collection,
     doc,
@@ -11,14 +22,64 @@ import {
     serverTimestamp,
     updateDoc,
 } from "../../lib/firebase";
-import { auth, db } from "../../lib/firebase";
 
-// Thread ID generator
-export function makeThreadId(itemId: string, buyerId: string, sellerId: string) {
-    return `${itemId}_${buyerId}_${sellerId}`;
+import { db } from "../../lib/firebase";
+
+// ---------------------------------------------------------------------
+// Type Definitions (added to remove TS errors — NO logic changes)
+// ---------------------------------------------------------------------
+export interface ThreadContext {
+    itemId: string;
+    itemName: string;
+    sellerId: string;
+    buyerId: string;
+    sellerName: string;
+    sellerInitials: string;
+    buyerName: string;
+    buyerInitials: string;
 }
 
-// Create or fetch thread
+// All fields optional → fixes TS2322 strict typing error
+export interface ChatMessage {
+    id?: string;
+    senderId?: string;
+    text?: string;
+    createdAt?: any; // Firestore timestamp
+}
+
+// Thread shape from Firestore
+export interface ChatThread {
+    id?: string;
+    threadId: string;
+    itemId: string;
+    itemName: string;
+    participants: string[];
+    buyerId: string;
+    sellerId: string;
+    buyerName: string;
+    sellerName: string;
+    buyerInitials: string;
+    sellerInitials: string;
+    lastMessage: string;
+    timestamp: any;
+    unread: Record<string, number>;
+    partnerName?: string;
+    partnerInitials?: string;
+}
+
+// =====================================================================
+// 1. THREAD ID GENERATOR
+// =====================================================================
+export function makeThreadId(buyerId: string, sellerId: string) {
+    const sortedA = buyerId < sellerId ? buyerId : sellerId;
+    const sortedB = buyerId < sellerId ? sellerId : buyerId;
+    const threadId = `${sortedA}_${sortedB}`;
+    return threadId;
+}
+
+// =====================================================================
+// 2. CREATE OR UPDATE A THREAD
+// =====================================================================
 export async function getOrCreateThread({
                                             itemId,
                                             itemName,
@@ -28,27 +89,25 @@ export async function getOrCreateThread({
                                             sellerInitials,
                                             buyerName,
                                             buyerInitials,
-                                        }) {
-    const threadId = makeThreadId(itemId, buyerId, sellerId);
+                                        }: ThreadContext) {
+
+    const threadId = makeThreadId(buyerId, sellerId);
     const ref = doc(db, "chats", threadId);
-
     const snap = await getDoc(ref);
+    const exists = snap.exists();
 
-    if (!snap.exists()) {
+    if (!exists) {
         await setDoc(ref, {
             threadId,
             itemId,
             itemName,
             participants: [buyerId, sellerId],
-
-            // store both names
             buyerId,
             sellerId,
             buyerName,
             sellerName,
             buyerInitials,
             sellerInitials,
-
             lastMessage: "",
             timestamp: serverTimestamp(),
             unread: {
@@ -56,13 +115,32 @@ export async function getOrCreateThread({
                 [sellerId]: 0,
             },
         });
+    } else {
+        await updateDoc(ref, {
+            itemId,
+            itemName,
+            buyerName,
+            sellerName,
+            buyerInitials,
+            sellerInitials,
+            timestamp: serverTimestamp(),
+        });
     }
 
     return threadId;
 }
 
-// Send message
-export async function sendMessage(threadId: string, senderId: string, text: string) {
+// =====================================================================
+// 3. SEND MESSAGE
+// =====================================================================
+export async function sendMessage(
+    threadId: string,
+    senderId: string,
+    text: string
+) {
+
+    if (!text.trim()) return;
+
     const threadRef = doc(db, "chats", threadId);
     const messagesRef = collection(threadRef, "messages");
 
@@ -72,46 +150,80 @@ export async function sendMessage(threadId: string, senderId: string, text: stri
         createdAt: serverTimestamp(),
     });
 
-    // Update thread metadata
     const snap = await getDoc(threadRef);
     const data = snap.data();
-    const other = data.participants.find((p: string) => p !== senderId);
+
+    if (!data) return;
+
+    const otherUser = data.participants.find(
+        (p: string) => p !== senderId
+    );
 
     await updateDoc(threadRef, {
         lastMessage: text,
         timestamp: serverTimestamp(),
-        [`unread.${other}`]: (data.unread?.[other] || 0) + 1,
+        [`unread.${otherUser}`]: (data.unread?.[otherUser] || 0) + 1,
     });
 }
 
-// Real-time listener for messages
-export function subscribeToMessages(threadId: string, callback: (msgs: any[]) => void) {
+// =====================================================================
+// 4. SUBSCRIBE TO MESSAGES
+// =====================================================================
+export function subscribeToMessages(
+    threadId: string,
+    callback: (msgs: ChatMessage[]) => void
+) {
+
     const threadRef = doc(db, "chats", threadId);
     const messagesRef = collection(threadRef, "messages");
 
     const q = query(messagesRef, orderBy("createdAt", "asc"));
+
     return onSnapshot(q, (snap) => {
-        callback(
-            snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-        );
+
+        const messages: ChatMessage[] = snap.docs.map((d) => ({
+            id: d.id,
+            ...d.data(),
+        }));
+
+        callback(messages);
     });
 }
 
-// Real-time listener for conversations
-export function subscribeToThreads(userId: string, callback: (threads: any[]) => void) {
+// =====================================================================
+// 5. SUBSCRIBE TO ALL THREADS FOR A USER
+// =====================================================================
+export function subscribeToThreads(
+    userId: string,
+    callback: (threads: ChatThread[]) => void
+) {
+
     const threadsRef = collection(db, "chats");
-    const q = query(threadsRef, where("participants", "array-contains", userId));
+
+    const q = query(
+        threadsRef,
+        where("participants", "array-contains", userId)
+    );
 
     return onSnapshot(q, (snap) => {
-        const threads = snap.docs.map((d) => {
-            const data = d.data();
-            const otherId = data.participants.find((p: string) => p !== userId);
+
+        const threads: ChatThread[] = snap.docs.map((d) => {
+            const data = d.data() as ChatThread;
+            const participants = data.participants || [];
+
+            const otherId = participants.find(
+                (p: string) => p !== userId
+            );
 
             const partnerName =
-                otherId === data.sellerId ? data.sellerName : data.buyerName;
+                otherId === data.sellerId
+                    ? data.sellerName
+                    : data.buyerName;
 
             const partnerInitials =
-                otherId === data.sellerId ? data.sellerInitials : data.buyerInitials;
+                otherId === data.sellerId
+                    ? data.sellerInitials
+                    : data.buyerInitials;
 
             return {
                 id: d.id,
@@ -125,10 +237,20 @@ export function subscribeToThreads(userId: string, callback: (threads: any[]) =>
     });
 }
 
-// Clear unread count
-export async function clearUnread(threadId: string, userId: string) {
+// =====================================================================
+// 6. CLEAR UNREAD COUNT
+// =====================================================================
+export async function clearUnread(
+    threadId: string,
+    userId: string
+) {
     const ref = doc(db, "chats", threadId);
+
     await updateDoc(ref, {
         [`unread.${userId}`]: 0,
     });
 }
+
+// =====================================================================
+// END OF FILE — Chat API
+// =====================================================================
