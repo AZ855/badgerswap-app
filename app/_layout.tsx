@@ -90,6 +90,12 @@ function LayoutContent() {
           }}
         />
         <Stack.Screen
+          name="report-listing"
+          options={{
+            title: 'Report this listing',
+          }}
+        />
+        <Stack.Screen
           name="profile"
           options={{
             title: 'Profile',
