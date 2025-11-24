@@ -685,6 +685,7 @@ export default function PostItemScreen() {
               location: effectiveLocation,
               primaryCategoryId: primaryCategory,
               categoryLabel,
+              listingId: editingListingId,
               images: images.map<ListingImageSource>((img) => ({
                 localUri: img.localUri,
                 remoteUrl: img.remoteUrl ?? null,
