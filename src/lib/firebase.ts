@@ -30,7 +30,8 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
-  where
+  where,
+  writeBatch
 } from 'firebase/firestore';
 import { Platform } from 'react-native';
 
@@ -51,7 +52,6 @@ const app = existingApps.length ? existingApps[0] : initializeApp(firebaseConfig
 export const firebaseApp = app;
 
 let authInstance: Auth;
-// Use secure persistence on native to keep auth state alive while remaining compatible with Expo web builds.
 if (Platform.OS === 'web') {
   authInstance = getAuth(app);
 } else {
@@ -89,5 +89,7 @@ export {
   updateDoc,
   updatePassword,
   updateProfile,
-  where, type User
+  where,
+  writeBatch,
+  type User
 };
