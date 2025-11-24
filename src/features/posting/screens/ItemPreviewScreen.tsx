@@ -27,6 +27,7 @@ type PreviewPayload = {
   condition: Item['condition'];
   description: string;
   location: string;
+  locationCoordinates?: { lat: number; lng: number } | null;
   primaryCategoryId: Category;
   categoryLabel: string;
   listingId: string | null;
@@ -43,6 +44,7 @@ const DEFAULT_PAYLOAD: PreviewPayload = {
   condition: 'Good',
   description: 'No description provided.',
   location: 'Madison, WI',
+  locationCoordinates: null,
   primaryCategoryId: 'other',
   categoryLabel: 'General',
   listingId: null,
@@ -142,6 +144,7 @@ export default function ItemPreviewScreen() {
           condition: payload.condition,
           description: payload.description.trim(),
           location: payload.location,
+          locationCoordinates: payload.locationCoordinates,
           imageUrls: uploadedUrls,
           coverImageUrl: uploadedUrls[0] ?? null,
         });
@@ -162,6 +165,7 @@ export default function ItemPreviewScreen() {
           condition: payload.condition,
           description: payload.description,
           location: payload.location,
+          locationCoordinates: payload.locationCoordinates,
           images: payload.images,
           sellerName:
             auth.currentUser.displayName?.trim() ||
@@ -357,6 +361,13 @@ function parsePayload(raw?: string | string[]): PreviewPayload {
           .filter((img: ListingImageSource) => img.localUri || img.remoteUrl)
       : [];
 
+    const locationCoordinates =
+      parsed.locationCoordinates &&
+      typeof parsed.locationCoordinates.lat === 'number' &&
+      typeof parsed.locationCoordinates.lng === 'number'
+        ? { lat: parsed.locationCoordinates.lat, lng: parsed.locationCoordinates.lng }
+        : null; 
+
     return {
       title: typeof parsed.title === 'string' && parsed.title.length > 0 ? parsed.title : DEFAULT_PAYLOAD.title,
       price: typeof parsed.price === 'string' ? parsed.price : String(parsed.price ?? DEFAULT_PAYLOAD.price),
@@ -367,6 +378,7 @@ function parsePayload(raw?: string | string[]): PreviewPayload {
           : DEFAULT_PAYLOAD.description,
       location:
         typeof parsed.location === 'string' && parsed.location.length > 0 ? parsed.location : DEFAULT_PAYLOAD.location,
+      locationCoordinates,
       primaryCategoryId: (parsed.primaryCategoryId as Category) ?? DEFAULT_PAYLOAD.primaryCategoryId,
       categoryLabel:
         typeof parsed.categoryLabel === 'string' && parsed.categoryLabel.length > 0

@@ -35,6 +35,15 @@ cp .env.example .env
 
 Never commit `.env` files — only the `.env.example`.
 
+#### Google Places API key (pickup location search)
+1. In the Google Cloud Console, enable the **Places API** for your project.
+2. Create an API key (Credentials → Create credentials → API key) and **restrict it** to the Places API and your app platforms (iOS/Android + bundle IDs if desired).
+3. Add the key to your local `.env` file:
+   ```bash
+   EXPO_PUBLIC_GOOGLE_PLACES_API_KEY=YOUR_KEY_HERE
+   ```
+4. Restart Expo (`npm run start` or `npx expo start`) so the new env var is picked up. The pickup-location search UI will load once this key is present.
+
 ---
 
 ### 4. Run the App

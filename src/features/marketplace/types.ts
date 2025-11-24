@@ -18,6 +18,7 @@ export interface Item {
   imageUrls: string[];
   coverImageUrl?: string | null;
   location: string;
+  locationCoordinates?: { lat: number; lng: number } | null;
   postedAt: string; // ISO string
   sellerId: string;
   // Optional detail fields used on the item detail screen
