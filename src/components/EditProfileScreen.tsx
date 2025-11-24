@@ -168,7 +168,7 @@ export default function EditProfileScreen() {
       trimmedPhoto === trimmedInitialPhoto;
 
     if (noChanges) {
-      router.back();
+      router.replace('/profile');
       return;
     }
 
@@ -225,7 +225,7 @@ export default function EditProfileScreen() {
       }
 
       Alert.alert('Profile updated', 'Your changes have been saved.', [
-        { text: 'OK', onPress: () => router.back() },
+        { text: 'OK', onPress: () => router.replace('/profile') },
       ]);
     } catch (err: any) {
       console.error(err);
