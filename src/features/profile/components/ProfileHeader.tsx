@@ -9,6 +9,7 @@ export interface ProfileHeaderProps {
   name: string;
   uwVerified?: boolean;
   stats: { listings: number; sold: number; favorites: number };
+  showStats?: boolean;
   onEdit?: () => void;
   showHandle?: boolean;
   variant?: 'full' | 'compact';
@@ -26,6 +27,7 @@ export default function ProfileHeader({
   name,
   uwVerified,
   stats,
+  showStats = true,
   onEdit,
   showHandle = false,
   variant = 'full',
@@ -112,6 +114,7 @@ export default function ProfileHeader({
         </View>
       </View>
 
+    {showStats && (
       <Animated.View
         onLayout={(e) => statsH == null && setStatsH(e.nativeEvent.layout.height)}
         style={[
@@ -132,7 +135,9 @@ export default function ProfileHeader({
           <Text style={styles.statLabel}>Favorites</Text>
         </View>
       </Animated.View>
+    )}
 
+    
       {showEditButton && (
         <Animated.View
           onLayout={(e) => editH == null && setEditH(e.nativeEvent.layout.height)}

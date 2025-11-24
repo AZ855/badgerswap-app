@@ -10,17 +10,17 @@
 // Firestore imports & setup
 // ---------------------------------------------------------------------
 import {
+    addDoc,
     collection,
     doc,
     getDoc,
-    setDoc,
-    addDoc,
-    query,
-    where,
-    orderBy,
     onSnapshot,
+    orderBy,
+    query,
     serverTimestamp,
+    setDoc,
     updateDoc,
+    where,
 } from "../../lib/firebase";
 
 import { db } from "../../lib/firebase";

@@ -149,6 +149,7 @@ export default function PublicProfileScreen() {
         name={displayName}
         uwVerified={uwVerified}
         stats={{ listings: hideDetails ? 0 : listings.length, sold: 0, favorites: 0 }}
+        showStats={!hideDetails}
         showHandle={false}
         phoneNumber={hideDetails ? null : profile?.phoneNumber ?? null}
         photoURL={profile?.photoURL ?? null}
