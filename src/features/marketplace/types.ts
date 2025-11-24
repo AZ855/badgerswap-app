@@ -13,6 +13,7 @@ export interface Item {
   title: string;
   price: number; // USD
   condition: 'New' | 'Like New' | 'Excellent' | 'Good' | 'Fair';
+  status?: 'available' | 'pending' | 'sold';
   category: Category;
   imageUrls: string[];
   coverImageUrl?: string | null;

@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -17,6 +17,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { auth } from '../../../lib/firebase';
 import { COLORS } from '../../../theme/colors';
 import type { Category, Item } from '../../marketplace/types';
+import { updateListing } from '../api';
+import { uploadImageAsync } from '../cloudinary';
 import { publishListing, type ListingImageSource } from '../publishListing';
 
 const CATEGORIES = [
@@ -44,8 +46,33 @@ const SUGGESTED_LOCATIONS = [
   'State Street',
 ];
 
+function parseEditListingPayload(raw?: string | string[]) {
+  if (!raw) return null;
+  const source = Array.isArray(raw) ? raw[0] : raw;
+  if (!source) return null;
+  try {
+    const parsed = JSON.parse(source);
+    return {
+      id: typeof parsed.id === 'string' ? parsed.id : null,
+      title: typeof parsed.title === 'string' ? parsed.title : '',
+      price: typeof parsed.price === 'number' ? parsed.price : Number(parsed.price ?? 0),
+      category: parsed.category,
+      condition: parsed.condition,
+      description: typeof parsed.description === 'string' ? parsed.description : '',
+      location: typeof parsed.location === 'string' ? parsed.location : '',
+      imageUrls: Array.isArray(parsed.imageUrls)
+        ? parsed.imageUrls.filter((url: unknown): url is string => typeof url === 'string')
+        : [],
+    } as Partial<Item> & { id: string | null };
+  } catch (err) {
+    console.warn('Failed to parse edit payload', err);
+    return null;
+  }
+}
+
 export default function PostItemScreen() {
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{ editItem?: string }>();
   const actionsAnim = useRef(new Animated.Value(0)).current;
 
   const [title, setTitle] = useState('');
@@ -60,6 +87,10 @@ export default function PostItemScreen() {
   const [showLocationSearch, setShowLocationSearch] = useState(false);
   const [locationSearch, setLocationSearch] = useState('');
   const [posting, setPosting] = useState(false);
+  const [editingListingId, setEditingListingId] = useState<string | null>(null);
+  const [initializedFromEdit, setInitializedFromEdit] = useState(false);
+
+  const isEditing = Boolean(editingListingId);
 
   const effectiveLocation = (location || locationSearch).trim();
   const isFormValid = Boolean(
@@ -79,6 +110,29 @@ export default function PostItemScreen() {
       useNativeDriver: true,
     }).start();
   }, [isFormValid, posting, actionsAnim]);
+
+  useEffect(() => {
+    if (initializedFromEdit) return;
+    const parsed = parseEditListingPayload(params.editItem);
+    if (!parsed) return;
+
+    setEditingListingId(parsed.id ?? null);
+    setTitle(parsed.title ?? '');
+    setCategories(parsed.category ? [parsed.category] : []);
+    setCondition((parsed.condition as Item['condition']) ?? '');
+    setPrice(String(parsed.price ?? ''));
+    setDescription(parsed.description ?? '');
+    setLocation(parsed.location ?? '');
+    setImages(
+      (parsed.imageUrls ?? []).map((url, idx) => ({
+        id: `existing-${idx}`,
+        localUri: url,
+        remoteUrl: url,
+      }))
+    );
+
+    setInitializedFromEdit(true);
+  }, [params.editItem, initializedFromEdit]);
 
   // Keep campus pickup suggestions searchable so users can quickly snap to a known building or hall.
   const filteredLocations = SUGGESTED_LOCATIONS.filter((loc) =>
@@ -221,6 +275,26 @@ export default function PostItemScreen() {
     }, 60);
   };
 
+  const uploadEditedImages = async () => {
+    const uploadedUrls = await Promise.all(
+      images.map(async (image) => {
+        if (image.remoteUrl) {
+          return image.remoteUrl;
+        }
+        if (image.localUri) {
+          return uploadImageAsync(image.localUri);
+        }
+        throw new Error('Image source missing local or remote URI.');
+      })
+    );
+
+    if (uploadedUrls.length === 0) {
+      throw new Error('Please add at least one photo.');
+    }
+
+    return uploadedUrls;
+  };
+
   const publishNow = async () => {
     if (!auth.currentUser) {
       Alert.alert('Not signed in', 'Please log in before posting an item.');
@@ -228,38 +302,60 @@ export default function PostItemScreen() {
     }
     setPosting(true);
     try {
-      // publishListing handles Cloudinary uploads + Firestore write so this screen just builds a clean payload.
-      const listing = await publishListing({
-        title: title.trim(),
-        price: Number(price),
-        category: (categories[0] ?? 'other') as Category,
-        condition: condition as Item['condition'],
-        description: description.trim(),
-        location: effectiveLocation,
-        images: images.map<ListingImageSource>((img) => ({
-          localUri: img.localUri,
-          remoteUrl: img.remoteUrl,
-        })),
-        sellerName:
-          auth.currentUser.displayName?.trim() ||
-          auth.currentUser.email?.split('@')[0] ||
-          'BadgerSwap Seller',
-        sellerPhotoURL: currentUserPhotoURL,
-        userId: auth.currentUser.uid,
-      });
+      if (isEditing && editingListingId) {
+        const uploadedUrls = await uploadEditedImages();
+        const updated = await updateListing(editingListingId, {
+          title: title.trim(),
+          price: Number(price),
+          category: (categories[0] ?? 'other') as Category,
+          condition: condition as Item['condition'],
+          description: description.trim(),
+          location: effectiveLocation,
+          imageUrls: uploadedUrls,
+          coverImageUrl: uploadedUrls[0] ?? null,
+        });
 
-      resetForm();
-      Alert.alert('Posted!', 'Your item is now live on BadgerSwap marketplace.', [
-        {
-          text: 'Back to Marketplace',
-          style: 'cancel',
-          onPress: navigateHome,
-        },
-        {
-          text: 'View Listing',
-          onPress: () => viewListingAfterHome(listing.id),
-        },
-      ]);
+        Alert.alert('Listing updated', 'Your changes are live.', [
+          { text: 'Back to Marketplace', style: 'cancel', onPress: navigateHome },
+          {
+            text: 'View Listing',
+            onPress: () => viewListingAfterHome(updated.id),
+          },
+        ]);
+      } else {
+        // publishListing handles Cloudinary uploads + Firestore write so this screen just builds a clean payload.
+        const listing = await publishListing({
+          title: title.trim(),
+          price: Number(price),
+          category: (categories[0] ?? 'other') as Category,
+          condition: condition as Item['condition'],
+          description: description.trim(),
+          location: effectiveLocation,
+          images: images.map<ListingImageSource>((img) => ({
+            localUri: img.localUri,
+            remoteUrl: img.remoteUrl,
+          })),
+          sellerName:
+            auth.currentUser.displayName?.trim() ||
+            auth.currentUser.email?.split('@')[0] ||
+            'BadgerSwap Seller',
+          sellerPhotoURL: currentUserPhotoURL,
+          userId: auth.currentUser.uid,
+        });
+
+        resetForm();
+        Alert.alert('Posted!', 'Your item is now live on BadgerSwap marketplace.', [
+          {
+            text: 'Back to Marketplace',
+            style: 'cancel',
+            onPress: navigateHome,
+          },
+          {
+            text: 'View Listing',
+            onPress: () => viewListingAfterHome(listing.id),
+          },
+        ]);
+      }
     } catch (err: any) {
       console.error('Error posting item:', err);
       Alert.alert('Error', err?.message ?? 'Failed to post item.');
@@ -271,11 +367,17 @@ export default function PostItemScreen() {
   const handlePostItem = () => {
     if (!ensureFormReady()) return;
     Alert.alert(
-      'Publish Listing',
-      'Double-check your title, price, location, and photos before going live.',
+      isEditing ? 'Save Changes' : 'Publish Listing',
+      isEditing
+        ? 'Update your listing with the latest photos and details.'
+        : 'Double-check your title, price, location, and photos before going live.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Post Item', style: 'destructive', onPress: () => void publishNow() },
+        {
+          text: isEditing ? 'Save Changes' : 'Post Item',
+          style: 'destructive',
+          onPress: () => void publishNow(),
+        },
       ]
     );
   };
@@ -583,6 +685,7 @@ export default function PostItemScreen() {
               location: effectiveLocation,
               primaryCategoryId: primaryCategory,
               categoryLabel,
+              listingId: editingListingId,
               images: images.map<ListingImageSource>((img) => ({
                 localUri: img.localUri,
                 remoteUrl: img.remoteUrl ?? null,
@@ -604,7 +707,13 @@ export default function PostItemScreen() {
           disabled={posting}
         >
           <Text style={styles.actionPostButtonText}>
-            {posting ? 'Posting...' : 'Post Item'}
+          {posting
+              ? isEditing
+                ? 'Saving...'
+                : 'Posting...'
+              : isEditing
+                ? 'Save Changes'
+                : 'Post Item'}
           </Text>
         </TouchableOpacity>
       </Animated.View>

@@ -17,6 +17,7 @@ type ListingDoc = {
   category?: string;
   location?: string;
   condition?: string;
+  status?: string;
   sellerId?: string;
   sellerName?: string;
   sellerPhotoURL?: string | null;
@@ -63,6 +64,7 @@ export function useListings(options: UseListingsOptions = {}) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return items.filter((item) => {
+      if (item.status === 'sold') return false;
       const matchesQuery = !q || item.title.toLowerCase().includes(q);
       const matchesCategory = category === 'all' || item.category === category;
       return matchesQuery && matchesCategory;
@@ -85,6 +87,12 @@ export function mapListingFromDoc(id: string, data: ListingDoc): Item {
       ? data.coverImageUrl
       : rawImages[0] ?? null;
 
+  const status: Item['status'] = ['available', 'pending', 'sold'].includes(
+    (data.status as string) ?? ''
+  )
+    ? (data.status as Item['status'])
+    : 'available';
+    
   const normalizedSellerName =
     typeof data.sellerName === 'string' && data.sellerName.trim().length > 0
       ? data.sellerName.trim()
@@ -104,6 +112,7 @@ export function mapListingFromDoc(id: string, data: ListingDoc): Item {
     location: data.location ?? 'Madison, WI',
     postedAt: postedDate.toISOString(),
     sellerId: data.sellerId ?? '',
+    status,
     description: data.description,
     imageUrls: rawImages,
     coverImageUrl: coverImage,

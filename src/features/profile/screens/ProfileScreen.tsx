@@ -53,6 +53,11 @@ export default function ProfileScreen() {
   const uwVerified = email ? email.toLowerCase().endsWith('@wisc.edu') : false;
 
   // Compose a lightweight view model for the header so UI stays dumb
+  const listings: Item[] = useMemo(() => userListings, [userListings]);
+  const soldCount = useMemo(
+    () => listings.filter((listing) => listing.status === 'sold').length,
+    [listings]
+  );
   const profileUser = useMemo(
     () => ({
       id: user?.uid ?? '',
@@ -60,16 +65,16 @@ export default function ProfileScreen() {
       name: displayName,
       uwVerified,
       stats: {
-        listings: userListings.length,
-        sold: 0,
+        listings: listings.length,
+        sold: soldCount,
         favorites: favoriteItems.length,
       },
     }),
-    [user?.uid, username, displayName, uwVerified, userListings.length, favoriteItems.length]
+    [user?.uid, username, displayName, uwVerified, listings.length, soldCount, favoriteItems.length]
   );
 
   const [tab, setTab] = useState<'listings' | 'favorites'>('listings');
-  const [status, setStatus] = useState<'all' | 'available' | 'pending' | 'sold'>('all');
+  const [status, setStatus] = useState<'all' | 'available' | 'sold'>('all');
   const [view, setView] = useState<'list' | 'grid'>('list');
 
   const COLLAPSE_Y = 80;
@@ -89,10 +94,18 @@ export default function ProfileScreen() {
   const [favoritesRefreshKey, setFavoritesRefreshKey] = useState(0);
   const pendingListingsRefresh = useRef<(() => void)[]>([]);
   const pendingFavoritesRefresh = useRef<(() => void)[]>([]);
-
-  const listings: Item[] = useMemo(() => userListings, [userListings]);
+  
   const favorites: Item[] = useMemo(() => favoriteItems, [favoriteItems]);
-  const listData = tab === 'favorites' ? favorites : listings;
+  const filteredListings = useMemo(() => {
+    if (status === 'sold') {
+      return listings.filter((listing) => listing.status === 'sold');
+    }
+    if (status === 'available') {
+      return listings.filter((listing) => listing.status !== 'sold');
+    }
+    return listings;
+  }, [listings, status]);
+  const listData = tab === 'favorites' ? favorites : filteredListings;
   const isFavoritesTab = tab === 'favorites';
   const hasEnoughItemsForCollapse = listData.length >= MIN_COLLAPSE_ITEMS;
   const verticalSlack = Math.max(0, contentHeight - listHeight);

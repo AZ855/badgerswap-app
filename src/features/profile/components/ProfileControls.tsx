@@ -1,9 +1,9 @@
-import React from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, ScrollView } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import React from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS } from '../../../theme/colors';
 
-type Status = 'all' | 'available' | 'pending' | 'sold';
+type Status = 'all' | 'available' | 'sold';
 type ViewMode = 'list' | 'grid';
 
 export default function ProfileControls({
@@ -20,7 +20,7 @@ export default function ProfileControls({
   return (
     <View style={styles.wrap}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
-        {(['all', 'available', 'pending', 'sold'] as Status[]).map((f) => (
+        {(['all', 'available', 'sold'] as Status[]).map((f) => (
           <TouchableOpacity
             key={f}
             style={[styles.chip, status === f && styles.chipActive]}

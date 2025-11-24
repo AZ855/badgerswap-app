@@ -15,6 +15,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { auth } from '../../../lib/firebase';
 import { COLORS } from '../../../theme/colors';
 import type { Category, Item } from '../../marketplace/types';
+import { updateListing } from '../api';
+import { uploadImageAsync } from '../cloudinary';
 import { publishListing, type ListingImageSource } from '../publishListing';
 
 const { width } = Dimensions.get('window');
@@ -27,6 +29,7 @@ type PreviewPayload = {
   location: string;
   primaryCategoryId: Category;
   categoryLabel: string;
+  listingId: string | null;
   images: ListingImageSource[];
 };
 
@@ -42,6 +45,7 @@ const DEFAULT_PAYLOAD: PreviewPayload = {
   location: 'Madison, WI',
   primaryCategoryId: 'other',
   categoryLabel: 'General',
+  listingId: null,
   images: [],
 };
 
@@ -55,6 +59,8 @@ export default function ItemPreviewScreen() {
     () => parsePayload(params.payload),
     [params.payload]
   );
+
+  const isEditing = Boolean(payload.listingId);
 
   const previewImages = useMemo(
     () =>
@@ -99,6 +105,22 @@ export default function ItemPreviewScreen() {
     }, 60);
   };
 
+  const uploadPreviewImages = async () => {
+    const uploadedUrls = await Promise.all(
+      payload.images.map(async (image) => {
+        if (image.remoteUrl) return image.remoteUrl;
+        if (image.localUri) return uploadImageAsync(image.localUri);
+        throw new Error('Image source missing local or remote URI.');
+      })
+    );
+
+    if (uploadedUrls.length === 0) {
+      throw new Error('Please add at least one photo.');
+    }
+
+    return uploadedUrls;
+  };
+
   const publishNow = async () => {
     if (!auth.currentUser) {
       Alert.alert('Not signed in', 'Please log in before posting an item.');
@@ -111,34 +133,56 @@ export default function ItemPreviewScreen() {
     }
     setPosting(true);
     try {
-      // Reuse the same publishListing pipeline here so preview and edit share one backend integration path.
-      const listing = await publishListing({
-        title: payload.title,
-        price: priceValue,
-        category: payload.primaryCategoryId,
-        condition: payload.condition,
-        description: payload.description,
-        location: payload.location,
-        images: payload.images,
-        sellerName:
-          auth.currentUser.displayName?.trim() ||
-          auth.currentUser.email?.split('@')[0] ||
-          'BadgerSwap Seller',
-        sellerPhotoURL: currentUserPhotoURL,
-        userId: auth.currentUser.uid,
-      });
+      if (isEditing && payload.listingId) {
+        const uploadedUrls = await uploadPreviewImages();
+        const listing = await updateListing(payload.listingId, {
+          title: payload.title.trim(),
+          price: priceValue,
+          category: payload.primaryCategoryId,
+          condition: payload.condition,
+          description: payload.description.trim(),
+          location: payload.location,
+          imageUrls: uploadedUrls,
+          coverImageUrl: uploadedUrls[0] ?? null,
+        });
 
-      Alert.alert('Posted!', 'Your item is now live on BadgerSwap marketplace.', [
-        {
-          text: 'Back to Marketplace',
-          style: 'cancel',
-          onPress: navigateHome,
-        },
-        {
-          text: 'View Listing',
-          onPress: () => viewListingAfterHome(listing.id),
-        },
-      ]);
+        Alert.alert('Listing updated', 'Your changes are live.', [
+          { text: 'Back to Marketplace', style: 'cancel', onPress: navigateHome },
+          {
+            text: 'View Listing',
+            onPress: () => viewListingAfterHome(listing.id),
+          },
+        ]);
+      } else {
+        // Reuse the same publishListing pipeline here so preview and edit share one backend integration path.
+        const listing = await publishListing({
+          title: payload.title,
+          price: priceValue,
+          category: payload.primaryCategoryId,
+          condition: payload.condition,
+          description: payload.description,
+          location: payload.location,
+          images: payload.images,
+          sellerName:
+            auth.currentUser.displayName?.trim() ||
+            auth.currentUser.email?.split('@')[0] ||
+            'BadgerSwap Seller',
+          sellerPhotoURL: currentUserPhotoURL,
+          userId: auth.currentUser.uid,
+        });
+
+        Alert.alert('Posted!', 'Your item is now live on BadgerSwap marketplace.', [
+          {
+            text: 'Back to Marketplace',
+            style: 'cancel',
+            onPress: navigateHome,
+          },
+          {
+            text: 'View Listing',
+            onPress: () => viewListingAfterHome(listing.id),
+          },
+        ]);
+      }
     } catch (err: any) {
       console.error('Error posting item from preview:', err);
       Alert.alert('Error', err?.message ?? 'Failed to publish this item.');
@@ -328,6 +372,7 @@ function parsePayload(raw?: string | string[]): PreviewPayload {
         typeof parsed.categoryLabel === 'string' && parsed.categoryLabel.length > 0
           ? parsed.categoryLabel
           : DEFAULT_PAYLOAD.categoryLabel,
+      listingId: typeof parsed.listingId === 'string' ? parsed.listingId : null,
       images,
     };
   } catch (err) {

@@ -22,6 +22,7 @@ import {
   removeFavoriteListing,
   subscribeFavoriteListing,
 } from '../../favorites/api';
+import { deleteListing, updateListing } from '../../posting/api';
 import type { Item } from '../types';
 import { mapListingFromDoc } from '../useListings';
 
@@ -41,6 +42,8 @@ export default function ItemDetailScreen() {
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const { user } = useAuth();
 
   // Live Firestore subscription keeps the detail view fresh during edits
@@ -152,6 +155,7 @@ export default function ItemDetailScreen() {
     .slice(0, 2)
     .toUpperCase();
   const isOwnListing = Boolean(user?.uid && item?.sellerId === user.uid);
+  const isSold = item?.status === 'sold';
   const postedDate =
     item?.postedAt != null ? formatTimeAgo(item.postedAt) : 'Just now';
 
@@ -180,6 +184,83 @@ export default function ItemDetailScreen() {
     } finally {
       setFavoriteBusy(false);
     }
+  };
+
+  const handleEditListing = () => {
+    if (!item || !isOwnListing) return;
+
+    try {
+      const payload = JSON.stringify({
+        id: item.id,
+        title: item.title,
+        price: item.price,
+        category: item.category,
+        condition: item.condition,
+        description: item.description ?? '',
+        location: item.location,
+        imageUrls: item.imageUrls,
+      });
+
+      router.push({ pathname: '/post-item', params: { editItem: payload } });
+    } catch (err) {
+      console.error('Failed to open listing editor', err);
+      Alert.alert('Unable to edit', 'Could not open the edit form for this listing.');
+    }
+  };
+
+  const updateStatus = async (nextStatus: Item['status']) => {
+    if (!item) return;
+    setStatusBusy(true);
+    try {
+      await updateListing(item.id, { status: nextStatus });
+    } catch (err: any) {
+      console.error('Failed to update listing status', err);
+      Alert.alert('Error', err?.message ?? 'Could not update the listing status.');
+    } finally {
+      setStatusBusy(false);
+    }
+  };
+
+  const handleMarkSold = () => {
+    if (!item || !isOwnListing || isSold) return;
+
+    Alert.alert(
+      'Mark as Sold',
+      'Marking this item as sold will hide the message button for buyers. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Mark as Sold', style: 'destructive', onPress: () => void updateStatus('sold') },
+      ]
+    );
+  };
+
+  const handleDeleteListing = () => {
+    if (!item || !isOwnListing) return;
+
+    Alert.alert(
+      'Delete Listing',
+      'This will permanently remove your listing from the marketplace. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleteBusy(true);
+            try {
+              await deleteListing(item.id);
+              router.replace('/marketplace');
+              Alert.alert('Listing deleted', 'Your listing was removed.');
+            } catch (err: any) {
+              console.error('Failed to delete listing', err);
+              Alert.alert('Error', err?.message ?? 'Could not delete the listing.');
+            } finally {
+              setDeleteBusy(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (loading) {
@@ -229,6 +310,29 @@ export default function ItemDetailScreen() {
               <Text style={styles.conditionText}>{item.condition}</Text>
             </View>
             <Text style={styles.postedDate}>{postedDate}</Text>
+            {item.status && (
+              <View
+                style={[
+                  styles.statusBadge,
+                  item.status === 'sold' && styles.statusBadgeSold,
+                  item.status === 'pending' && styles.statusBadgePending,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusText,
+                    item.status === 'sold' && styles.statusTextSold,
+                    item.status === 'pending' && styles.statusTextPending,
+                  ]}
+                >
+                  {item.status === 'sold'
+                    ? 'Sold'
+                    : item.status === 'pending'
+                      ? 'Pending'
+                      : 'Available'}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Seller Info */}
@@ -305,22 +409,52 @@ export default function ItemDetailScreen() {
           </View>
 
           {/* Report Button */}
-          <TouchableOpacity style={styles.reportButton}>
-            <Feather name="flag" size={16} color={COLORS.primary} />
-            <Text style={styles.reportText}>Report this listing</Text>
-          </TouchableOpacity>
+          {!isOwnListing && (
+            <TouchableOpacity style={styles.reportButton}>
+              <Feather name="flag" size={16} color={COLORS.primary} />
+              <Text style={styles.reportText}>Report this listing</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
 
       {/* Bottom Actions */}
       {isOwnListing ? (
         <View style={styles.ownerActions}>
+          {!isSold && (
+            <TouchableOpacity
+              style={styles.ownerSecondaryButton}
+              onPress={handleEditListing}
+              disabled={deleteBusy}
+            >
+              <Feather name="edit-2" size={18} color={COLORS.primary} />
+              <Text style={styles.ownerSecondaryText}>Edit</Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
-            style={styles.ownerPrimaryButton}
-            onPress={() => router.replace('/profile')}
+            style={[
+              styles.ownerPrimaryButton,
+              (statusBusy || isSold || deleteBusy) && { opacity: 0.7 },
+            ]}
+            onPress={handleMarkSold}
+            disabled={statusBusy || isSold || deleteBusy}
           >
-            <Feather name="user" size={18} color={COLORS.white} />
-            <Text style={styles.ownerPrimaryText}>Go to Your Profile</Text>
+            <Feather name="check-circle" size={18} color={COLORS.white} />
+            <Text style={styles.ownerPrimaryText}>
+              {isSold ? 'Marked as Sold' : statusBusy ? 'Marking...' : 'Sold'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.ownerDangerButton, deleteBusy && { opacity: 0.7 }]}
+            onPress={handleDeleteListing}
+            disabled={deleteBusy}
+          >
+            <Feather name="trash-2" size={18} color="#DC2626" />
+            <Text style={styles.ownerDangerText}>
+              {deleteBusy ? 'Deleting...' : 'Delete'}
+            </Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -338,8 +472,15 @@ export default function ItemDetailScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-              style={styles.messageButton}
+              style={[
+                styles.messageButton,
+                isSold && styles.messageButtonDisabled,
+              ]}
               onPress={async () => {
+                if (isSold) {
+                  Alert.alert('Listing sold', 'This seller marked the item as sold.');
+                  return;
+                }
                 try {
                   if (!user?.uid) {
                     Alert.alert('Sign in required', 'Please log in to send messages.', [
@@ -372,9 +513,12 @@ export default function ItemDetailScreen() {
                   Alert.alert('Error', err?.message ?? 'Unable to open chat.');
                 }
               }}
+              disabled={isSold}
           >
           <Feather name="message-circle" size={20} color={COLORS.white} />
-            <Text style={styles.messageButtonText}>Message Seller</Text>
+            <Text style={styles.messageButtonText}>
+              {isSold ? 'Listing Sold' : 'Message Seller'}
+            </Text>
           </TouchableOpacity>
         </View>
       )}
@@ -578,6 +722,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
   },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#ECFDF3',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+  },
+  statusBadgePending: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FCD34D',
+  },
+  statusBadgeSold: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FCA5A5',
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#166534',
+    textTransform: 'uppercase',
+  },
+  statusTextPending: { color: '#92400E' },
+  statusTextSold: { color: '#991B1B' },
   sellerCard: {
     backgroundColor: COLORS.white,
     padding: 16,
@@ -742,6 +910,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  messageButtonDisabled: {
+    backgroundColor: '#D1D5DB',
+  },
   messageButtonText: {
     color: COLORS.white,
     fontSize: 18,
@@ -765,9 +936,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  ownerSecondaryButton: {
+    flex: 1,
+    height: 56,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 28,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
   ownerPrimaryText: {
     color: COLORS.white,
     fontSize: 16,
     fontWeight: '600',
+  },
+  ownerSecondaryText: {
+    color: COLORS.primary,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  ownerDangerButton: {
+    flex: 1,
+    height: 56,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 28,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  ownerDangerText: {
+    color: '#DC2626',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });
