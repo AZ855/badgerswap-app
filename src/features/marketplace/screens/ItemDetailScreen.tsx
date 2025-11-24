@@ -335,6 +335,16 @@ export default function ItemDetailScreen() {
             )}
           </View>
 
+          <View style={styles.locationCard}>
+            <View style={styles.locationIcon}>
+              <Feather name="map-pin" size={18} color={COLORS.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.locationLabel}>Pickup location</Text>
+              <Text style={styles.locationValue}>{item.location}</Text>
+            </View>
+          </View>
+
           {/* Seller Info */}
           <View style={styles.sellerCard}>
             <View style={styles.sellerLeft}>
@@ -883,6 +893,36 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontSize: 14,
     fontWeight: '500',
+  },
+  locationCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: COLORS.white,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 16,
+  },
+  locationIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  locationLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  locationValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
   },
   bottomActions: {
     flexDirection: 'row',
