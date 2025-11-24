@@ -16,6 +16,8 @@ type ListingDoc = {
   imageUrls?: unknown;
   category?: string;
   location?: string;
+  locationLat?: number | null;
+  locationLng?: number | null;
   condition?: string;
   status?: string;
   sellerId?: string;
@@ -25,7 +27,7 @@ type ListingDoc = {
   sellerRating?: number;
   postedAt?: Timestamp;
   description?: string;
-  coverImageUrl?: string;
+  coverImageUrl?: string | null;
 };
 
 export function useListings(options: UseListingsOptions = {}) {
@@ -103,6 +105,9 @@ export function mapListingFromDoc(id: string, data: ListingDoc): Item {
       ? data.sellerPhotoURL.trim()
       : null;
 
+    const hasValidCoords =
+      typeof data.locationLat === 'number' && typeof data.locationLng === 'number';
+      
   return {
     id,
     title: data.title ?? 'Untitled listing',
@@ -110,6 +115,9 @@ export function mapListingFromDoc(id: string, data: ListingDoc): Item {
     category: (data.category ?? 'other') as Category,
     condition: (data.condition ?? 'Good') as Item['condition'],
     location: data.location ?? 'Madison, WI',
+    locationCoordinates: hasValidCoords
+      ? { lat: data.locationLat as number, lng: data.locationLng as number }
+      : undefined,
     postedAt: postedDate.toISOString(),
     sellerId: data.sellerId ?? '',
     status,

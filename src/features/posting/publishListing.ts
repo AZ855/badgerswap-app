@@ -14,6 +14,7 @@ export interface PublishListingInput {
   condition: Item['condition'];
   description: string;
   location: string;
+  locationCoordinates?: { lat: number; lng: number } | null;
   images: ListingImageSource[];
   sellerName: string;
   sellerPhotoURL?: string | null;
@@ -42,6 +43,7 @@ export async function publishListing(input: PublishListingInput): Promise<Item> 
       condition: input.condition,
       description: input.description.trim(),
       location: input.location,
+      locationCoordinates: input.locationCoordinates,
       imageUrls: uploadedUrls,
       sellerName: input.sellerName,
       sellerPhotoURL: input.sellerPhotoURL,

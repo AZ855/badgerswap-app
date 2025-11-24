@@ -19,6 +19,7 @@ import { COLORS } from '../../../theme/colors';
 import type { Category, Item } from '../../marketplace/types';
 import { updateListing } from '../api';
 import { uploadImageAsync } from '../cloudinary';
+import { PickupLocationModal, type LocationSelection } from '../components/PickupLocationModal';
 import { publishListing, type ListingImageSource } from '../publishListing';
 
 const CATEGORIES = [
@@ -32,19 +33,6 @@ const CATEGORIES = [
 ];
 
 const CONDITIONS = ['Like New', 'Excellent', 'Good', 'Fair'];
-
-const SUGGESTED_LOCATIONS = [
-  'Memorial Union',
-  'College Library',
-  'Union South',
-  'Grainger Hall',
-  'Dejope Residence Hall',
-  'Sellery Hall',
-  'Witte Hall',
-  'Engineering Hall',
-  'Campus Book Store',
-  'State Street',
-];
 
 function parseEditListingPayload(raw?: string | string[]) {
   if (!raw) return null;
@@ -60,6 +48,15 @@ function parseEditListingPayload(raw?: string | string[]) {
       condition: parsed.condition,
       description: typeof parsed.description === 'string' ? parsed.description : '',
       location: typeof parsed.location === 'string' ? parsed.location : '',
+      locationCoordinates:
+        parsed.locationCoordinates &&
+        typeof parsed.locationCoordinates.lat === 'number' &&
+        typeof parsed.locationCoordinates.lng === 'number'
+          ? {
+              lat: parsed.locationCoordinates.lat,
+              lng: parsed.locationCoordinates.lng,
+            }
+          : null,
       imageUrls: Array.isArray(parsed.imageUrls)
         ? parsed.imageUrls.filter((url: unknown): url is string => typeof url === 'string')
         : [],
@@ -83,16 +80,15 @@ export default function PostItemScreen() {
   type ListingImage = { id: string; localUri: string; remoteUrl?: string };
   // ListingImage view-model keeps multi-photo selections + uploads staged locally before they touch Cloudinary.
   const [images, setImages] = useState<ListingImage[]>([]);
-  const [location, setLocation] = useState('');
-  const [showLocationSearch, setShowLocationSearch] = useState(false);
-  const [locationSearch, setLocationSearch] = useState('');
+  const [locationSelection, setLocationSelection] = useState<LocationSelection | null>(null);
+  const [locationModalVisible, setLocationModalVisible] = useState(false);
   const [posting, setPosting] = useState(false);
   const [editingListingId, setEditingListingId] = useState<string | null>(null);
   const [initializedFromEdit, setInitializedFromEdit] = useState(false);
 
   const isEditing = Boolean(editingListingId);
 
-  const effectiveLocation = (location || locationSearch).trim();
+  const effectiveLocation = locationSelection?.description?.trim() ?? '';
   const isFormValid = Boolean(
     title &&
       categories.length > 0 &&
@@ -100,7 +96,9 @@ export default function PostItemScreen() {
       price &&
       description &&
       images.length > 0 &&
-      effectiveLocation
+      effectiveLocation &&
+      typeof locationSelection?.lat === 'number' &&
+      typeof locationSelection?.lng === 'number'
   );
 
   useEffect(() => {
@@ -122,7 +120,13 @@ export default function PostItemScreen() {
     setCondition((parsed.condition as Item['condition']) ?? '');
     setPrice(String(parsed.price ?? ''));
     setDescription(parsed.description ?? '');
-    setLocation(parsed.location ?? '');
+    if (parsed.location || parsed.locationCoordinates) {
+      setLocationSelection({
+        description: parsed.location ?? parsed.locationCoordinates?.lat?.toString() ?? '',
+        lat: parsed.locationCoordinates?.lat,
+        lng: parsed.locationCoordinates?.lng,
+      });
+    }
     setImages(
       (parsed.imageUrls ?? []).map((url, idx) => ({
         id: `existing-${idx}`,
@@ -133,11 +137,6 @@ export default function PostItemScreen() {
 
     setInitializedFromEdit(true);
   }, [params.editItem, initializedFromEdit]);
-
-  // Keep campus pickup suggestions searchable so users can quickly snap to a known building or hall.
-  const filteredLocations = SUGGESTED_LOCATIONS.filter((loc) =>
-    loc.toLowerCase().includes(locationSearch.toLowerCase())
-  );
 
   const removeImage = (id: string) => {
     setImages((prev) => prev.filter((img) => img.id !== id));
@@ -244,6 +243,16 @@ export default function PostItemScreen() {
       Alert.alert('Missing Info', 'Please select a pickup location');
       return false;
     }
+    if (
+      typeof locationSelection?.lat !== 'number' ||
+      typeof locationSelection?.lng !== 'number'
+    ) {
+      Alert.alert(
+        'Confirm location',
+        'Please pick a location from the search results so we can save the coordinates.'
+      );
+      return false;
+    }
     if (!auth.currentUser) {
       Alert.alert('Not signed in', 'Please log in before posting an item.');
       return false;
@@ -258,8 +267,7 @@ export default function PostItemScreen() {
     setPrice('');
     setDescription('');
     setImages([]);
-    setLocation('');
-    setLocationSearch('');
+    setLocationSelection(null);
   };
 
   const navigateHome = () => {
@@ -311,6 +319,10 @@ export default function PostItemScreen() {
           condition: condition as Item['condition'],
           description: description.trim(),
           location: effectiveLocation,
+          locationCoordinates:
+            locationSelection && typeof locationSelection.lat === 'number'
+              ? { lat: locationSelection.lat, lng: locationSelection.lng as number }
+              : undefined,
           imageUrls: uploadedUrls,
           coverImageUrl: uploadedUrls[0] ?? null,
         });
@@ -331,6 +343,10 @@ export default function PostItemScreen() {
           condition: condition as Item['condition'],
           description: description.trim(),
           location: effectiveLocation,
+          locationCoordinates:
+            locationSelection && typeof locationSelection.lat === 'number'
+              ? { lat: locationSelection.lat, lng: locationSelection.lng as number }
+              : undefined,
           images: images.map<ListingImageSource>((img) => ({
             localUri: img.localUri,
             remoteUrl: img.remoteUrl,
@@ -546,70 +562,48 @@ export default function PostItemScreen() {
               <Text style={styles.label}>Pickup Location</Text>
               <Text style={styles.required}>*</Text>
             </View>
-            <View style={styles.searchInputContainer}>
-              <Feather
-                name="search"
-                size={18}
-                color="#9CA3AF"
-                style={styles.searchIcon}
-              />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search campus locations..."
-                placeholderTextColor="#9CA3AF"
-                value={location || locationSearch}
-                onChangeText={(text) => {
-                  setLocationSearch(text);
-                  setLocation('');
-                  setShowLocationSearch(true);
-                }}
-                onFocus={() => setShowLocationSearch(true)}
-              />
-              {location && (
+            {locationSelection?.description ? (
+              <View style={styles.selectedLocationCard}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={styles.selectedLocationIcon}>
+                    <Feather name="map-pin" size={18} color={COLORS.white} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.selectedLocationLabel}>Saved pickup spot</Text>
+                    <Text style={styles.selectedLocationText}>{locationSelection.description}</Text>
+                    {typeof locationSelection.lat === 'number' && typeof locationSelection.lng === 'number' && (
+                      <Text style={styles.selectedLocationCoords}>
+                        {locationSelection.lat.toFixed(5)}, {locationSelection.lng.toFixed(5)}
+                      </Text>
+                    )}
+                    {typeof locationSelection.lat !== 'number' || typeof locationSelection.lng !== 'number' ? (
+                      <Text style={styles.locationWarning}>Tap "Choose pickup spot" to confirm coordinates.</Text>
+                    ) : null}
+                  </View>
+                </View>
                 <TouchableOpacity
-                  onPress={() => {
-                    setLocation('');
-                    setLocationSearch('');
-                  }}
-                  style={styles.clearButton}
+                  onPress={() => setLocationSelection(null)}
+                  style={styles.clearLocationButton}
+                  accessibilityLabel="Remove pickup location"
                 >
-                  <Feather name="x" size={18} color="#9CA3AF" />
+                  <Feather name="x" size={18} color="#6B7280" />
                 </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Location Dropdown */}
-            {showLocationSearch && !location && (
-              <View style={styles.locationDropdown}>
-                <ScrollView style={styles.locationList} nestedScrollEnabled>
-                  {filteredLocations.length > 0 ? (
-                    filteredLocations.map((loc) => (
-                      <TouchableOpacity
-                        key={loc}
-                        style={styles.locationItem}
-                        onPress={() => {
-                          setLocation(loc);
-                          setLocationSearch('');
-                          setShowLocationSearch(false);
-                        }}
-                      >
-                        <Feather name="map-pin" size={16} color="#9CA3AF" />
-                        <Text style={styles.locationText}>{loc}</Text>
-                      </TouchableOpacity>
-                    ))
-                  ) : (
-                    <Text style={styles.noLocations}>No locations found</Text>
-                  )}
-                </ScrollView>
-              </View>
+                </View>
+              ) : (
+                <Text style={styles.locationHelper}>
+                  Use Google Places to pick a real meetup spot so buyers know exactly where to find you.
+                </Text>
             )}
-
-            {location && (
-              <View style={styles.selectedLocation}>
-                <Feather name="map-pin" size={16} color="#10B981" />
-                <Text style={styles.selectedLocationText}>{location}</Text>
-              </View>
-            )}
+            <TouchableOpacity
+              style={styles.locationCTA}
+              onPress={() => setLocationModalVisible(true)}
+              accessibilityLabel="Open pickup location search"
+            >
+              <Feather name="navigation" size={18} color={COLORS.white} />
+              <Text style={styles.locationCTAText}>
+                {locationSelection?.description ? 'Change pickup spot' : 'Choose pickup spot'}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Description */}
@@ -647,6 +641,13 @@ export default function PostItemScreen() {
         </View>
       </ScrollView>
 
+      <PickupLocationModal
+        visible={locationModalVisible}
+        onClose={() => setLocationModalVisible(false)}
+        onSelect={(selection) => setLocationSelection(selection)}
+        apiKey={process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY}
+      />
+
       {/* Slide-up Actions */}
       <Animated.View
         pointerEvents={isFormValid && !posting ? 'auto' : 'none'}
@@ -683,6 +684,10 @@ export default function PostItemScreen() {
               condition,
               description: description.trim(),
               location: effectiveLocation,
+              locationCoordinates:
+                locationSelection && typeof locationSelection.lat === 'number'
+                  ? { lat: locationSelection.lat, lng: locationSelection.lng as number }
+                  : undefined,
               primaryCategoryId: primaryCategory,
               categoryLabel,
               listingId: editingListingId,
@@ -923,72 +928,72 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: COLORS.white,
   },
-  searchInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    backgroundColor: COLORS.white,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: '#111827',
-  },
-  clearButton: {
-    padding: 4,
-  },
-  locationDropdown: {
-    marginTop: 4,
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    maxHeight: 192,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  locationList: {
-    flex: 1,
-  },
-  locationItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  locationText: {
-    fontSize: 14,
-    color: '#111827',
-  },
-  noLocations: {
-    textAlign: 'center',
-    paddingVertical: 16,
+  locationHelper: {
     fontSize: 14,
     color: '#6B7280',
+    marginBottom: 12,
   },
-  selectedLocation: {
-    flexDirection: 'row',
+  selectedLocationCard: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 12,
+    padding: 14,
+    gap: 10,
+    marginBottom: 12,
+    position: 'relative',
+  },
+  selectedLocationIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#10B981',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 8,
+    justifyContent: 'center',
+  },
+  selectedLocationLabel: {
+    fontSize: 12,
+    color: '#065F46',
+    textTransform: 'uppercase',
+    fontWeight: '700',
+    letterSpacing: 0.4,
   },
   selectedLocationText: {
     fontSize: 14,
-    color: '#10B981',
-    fontWeight: '500',
+    color: '#064E3B',
+    fontWeight: '600',
+  },
+  selectedLocationCoords: {
+    fontSize: 12,
+    color: '#047857',
+    marginTop: 2,
+  },
+  locationWarning: {
+    fontSize: 12,
+    color: '#B45309',
+    marginTop: 6,
+  },
+  clearLocationButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    padding: 6,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 999,
+  },
+  locationCTA: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  locationCTAText: {
+    color: COLORS.white,
+    fontWeight: '700',
+    fontSize: 15,
   },
   textarea: {
     borderWidth: 1,
