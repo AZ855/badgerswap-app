@@ -10,6 +10,4 @@ export const options = {
     title: '',
 };
 
-//test1
-
 export default ChatScreen;
