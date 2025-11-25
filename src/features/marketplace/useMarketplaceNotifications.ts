@@ -62,6 +62,11 @@ export function useMarketplaceNotifications() {
 
       if (enabledRef.current) return;
 
+      // Ensure we start from a clean slate when re-enabling notifications so we don't
+      // compare against stale listing state and surface toasts for updates that
+      // happened while notifications were disabled.
+      cleanupFavoriteListeners();
+      
       enabledRef.current = true;
 
       // Listen to favorites for changes on saved listings.
