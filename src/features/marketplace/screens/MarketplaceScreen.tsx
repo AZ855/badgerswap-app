@@ -8,13 +8,14 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { usePullToRefresh } from '../../../hooks/usePullToRefresh';
 import { COLORS } from '../../../theme/colors';
+import { useAuth } from '../../auth/AuthProvider';
 import FilterBar from '../components/FilterBar';
 import ItemCard from '../components/ItemCard';
 import ItemListCard from '../components/ItemListCard';
 import type { Category, Item } from '../types';
 import { useListings } from '../useListings';
-import { usePullToRefresh } from '../../../hooks/usePullToRefresh';
 
 export default function MarketplaceScreen() {
   const [searchText, setSearchText] = useState('');
@@ -23,6 +24,7 @@ export default function MarketplaceScreen() {
   const [debouncedQ, setDebouncedQ] = useState('');
   const [refreshTick, setRefreshTick] = useState(0);
   const t = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { user } = useAuth();
   // Pair each refresh gesture with a resolver so the pull-to-refresh indicator finishes only after Firestore returns.
   const pendingRefreshResolvers = useRef<(() => void)[]>([]);
 
@@ -31,6 +33,7 @@ export default function MarketplaceScreen() {
     search: debouncedQ,
     category: selected,
     refreshKey: refreshTick,
+    currentUserId: user?.uid,
   });
 
   useEffect(() => {

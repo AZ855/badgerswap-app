@@ -1,6 +1,15 @@
 import { Timestamp, type QueryConstraint } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
-import { collection, db, limit as fsLimit, onSnapshot, orderBy, query } from '../../lib/firebase';
+import {
+  collection,
+  db,
+  limit as fsLimit,
+  onSnapshot,
+  orderBy,
+  query,
+  where,
+} from '../../lib/firebase';
+import { subscribeToBlockedUsers } from '../profile/blocking';
 import type { Category, Item } from './types';
 
 export interface UseListingsOptions {
@@ -8,6 +17,7 @@ export interface UseListingsOptions {
   category?: Category | 'all';
   limit?: number;
   refreshKey?: number;
+  currentUserId?: string;
 }
 
 type ListingDoc = {
@@ -31,10 +41,46 @@ type ListingDoc = {
 };
 
 export function useListings(options: UseListingsOptions = {}) {
-  const { search = '', category = 'all', limit, refreshKey = 0 } = options;
+  const { search = '', category = 'all', limit, refreshKey = 0, currentUserId } = options;
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [blockedIds, setBlockedIds] = useState<string[]>([]);
+  const [blockedByIds, setBlockedByIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!currentUserId) {
+      setBlockedIds([]);
+      return () => {};
+    }
+
+    return subscribeToBlockedUsers(currentUserId, setBlockedIds);
+  }, [currentUserId]);
+
+  useEffect(() => {
+    if (!currentUserId) {
+      setBlockedByIds([]);
+      return () => {};
+    }
+
+    const blockedByQuery = query(
+      collection(db, 'users'),
+      where('blockedUserIds', 'array-contains', currentUserId)
+    );
+
+    const unsubscribe = onSnapshot(
+      blockedByQuery,
+      (snapshot) => {
+        setBlockedByIds(snapshot.docs.map((docSnap) => docSnap.id));
+      },
+      (err) => {
+        console.error('Failed to load blockers:', err);
+        setBlockedByIds([]);
+      }
+    );
+
+    return unsubscribe;
+  }, [currentUserId]);
 
   useEffect(() => {
     setLoading(true);
@@ -67,11 +113,15 @@ export function useListings(options: UseListingsOptions = {}) {
     const q = search.trim().toLowerCase();
     return items.filter((item) => {
       if (item.status === 'sold') return false;
+      if (currentUserId) {
+        if (blockedIds.includes(item.sellerId)) return false;
+        if (blockedByIds.includes(item.sellerId)) return false;
+      }
       const matchesQuery = !q || item.title.toLowerCase().includes(q);
       const matchesCategory = category === 'all' || item.category === category;
       return matchesQuery && matchesCategory;
     });
-  }, [items, search, category]);
+  }, [items, search, category, currentUserId, blockedIds, blockedByIds]);
 
   return { items: filtered, loading, error };
 }

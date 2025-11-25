@@ -26,26 +26,28 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View,
+  Alert,
+  Animated,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  Animated,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
+  View,
 } from 'react-native';
 
-import { useLocalSearchParams } from 'expo-router';
 import { Feather as Icon } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { COLORS } from '../../../theme/colors';
+import { useBlockingStatus } from '../../../hooks/useBlockingStatus';
 import { usePullToRefresh } from '../../../hooks/usePullToRefresh';
+import { COLORS } from '../../../theme/colors';
 import { useAuth } from '../../auth/AuthProvider';
 
 import {
-  subscribeToMessages,
   clearUnread,
+  subscribeToMessages,
 } from '../api';
 
 import { db, doc, getDoc } from '../../../lib/firebase';
@@ -58,6 +60,7 @@ import { db, doc, getDoc } from '../../../lib/firebase';
 export default function ChatScreen() {
 
   const { user } = useAuth();
+  const router = useRouter();
 
   // threadId is the ONLY navigation param needed now
   const { threadId } = useLocalSearchParams() as { threadId: string };
@@ -66,6 +69,7 @@ export default function ChatScreen() {
   const [partnerName, setPartnerName] = useState("User");
   const [partnerInitials, setPartnerInitials] = useState("U");
   const [itemName, setItemName] = useState("Item");
+  const [partnerId, setPartnerId] = useState('');
 
   // Message state
   const [message, setMessage] = useState('');
@@ -100,6 +104,7 @@ export default function ChatScreen() {
       setPartnerName(pName || "User");
       setPartnerInitials((pInitials || "U").toUpperCase());
       setItemName(data.itemName || "Item");
+      setPartnerId(otherId || '');
     };
 
     loadThreadInfo();
@@ -154,19 +159,45 @@ export default function ChatScreen() {
 
 
 
+  const { isBlocked, blockedByOther, loading: blockLoading } = useBlockingStatus(
+    user?.uid,
+    partnerId
+  );
+
+  const messagingDisabled = isBlocked || blockedByOther;
+
   /* ====================================================================
    * Sending a message
    * ==================================================================== */
   const sendMessage = async () => {
 
-    if (!message.trim() || !threadId || !user) return;
+    if (!message.trim() || !threadId || !user || !partnerId) return;
+
+    if (messagingDisabled) {
+      Alert.alert(
+        'Messaging blocked',
+        blockedByOther
+          ? 'This user has blocked you from messaging them.'
+          : 'Unblock this user to resume messaging.'
+      );
+      return;
+    }
 
     // IMPORTANT: lazy-loaded to avoid circular import
     const { sendMessage: sendMessageToFirestore } = await import('../api');
 
-    await sendMessageToFirestore(threadId, user.uid, message.trim());
+    try {
+      await sendMessageToFirestore(threadId, user.uid, message.trim(), partnerId);
+      setMessage('');
+    } catch (err: any) {
+      console.error('Failed to send message', err);
+      Alert.alert('Unable to send message', err?.message ?? 'Messaging is blocked.');
+    }
+  };
 
-    setMessage('');
+  const openBlockSettings = () => {
+    if (!partnerId) return;
+    router.push({ pathname: '/block-user', params: { userId: partnerId, name: partnerName } });
   };
 
 
@@ -238,11 +269,24 @@ export default function ChatScreen() {
 
           </View>
 
-          <TouchableOpacity>
+          <TouchableOpacity onPress={openBlockSettings}>
             <Icon name="more-vertical" size={24} color="#374151" />
           </TouchableOpacity>
 
         </View>
+
+        {(messagingDisabled || blockLoading) && (
+          <View style={styles.blockNotice}>
+            <Icon name="slash" size={16} color={COLORS.primary} />
+            <Text style={styles.blockNoticeText}>
+              {blockLoading
+                ? 'Checking block status...'
+                : blockedByOther
+                  ? 'You cannot send messages to this user.'
+                  : 'You blocked this user. Unblock in settings to resume chatting.'}
+            </Text>
+          </View>
+        )}
 
 
 
@@ -253,18 +297,27 @@ export default function ChatScreen() {
 
           {messageRefresh.indicator}
 
-          <Animated.FlatList
-              data={messages}
-              renderItem={renderMessage}
-              keyExtractor={(item) => item.id.toString()}
-              style={messageRefresh.listStyle}
-              contentContainerStyle={styles.messagesContainer}
-              onScroll={messageRefresh.onScroll}
-              onScrollEndDrag={messageRefresh.onRelease}
-              onMomentumScrollEnd={messageRefresh.onRelease}
-              scrollEventThrottle={16}
-              showsVerticalScrollIndicator={false}
-          />
+          {messagingDisabled ? (
+            <View style={styles.blockedMessages}>
+              <Icon name="slash" size={24} color={COLORS.primary} />
+              <Text style={styles.blockNoticeText}>
+                Messages are hidden because {blockedByOther ? 'this user blocked you' : 'you blocked this user'}.
+              </Text>
+            </View>
+          ) : (
+            <Animated.FlatList
+                data={messages}
+                renderItem={renderMessage}
+                keyExtractor={(item) => item.id.toString()}
+                style={messageRefresh.listStyle}
+                contentContainerStyle={styles.messagesContainer}
+                onScroll={messageRefresh.onScroll}
+                onScrollEndDrag={messageRefresh.onRelease}
+                onMomentumScrollEnd={messageRefresh.onRelease}
+                scrollEventThrottle={16}
+                showsVerticalScrollIndicator={false}
+            />
+          )}
 
         </View>
 
@@ -275,20 +328,22 @@ export default function ChatScreen() {
        * =========================================================== */}
         <View style={styles.inputContainer}>
 
-          <TextInput
-              style={styles.input}
-              placeholder="Type a message..."
-              value={message}
-              onChangeText={setMessage}
-              multiline
-          />
+        <TextInput
+                style={[styles.input, messagingDisabled && styles.inputDisabled]}
+                placeholder="Type a message..."
+                value={message}
+                onChangeText={setMessage}
+                multiline
+                editable={!messagingDisabled}
+            />
 
-          <TouchableOpacity
-              style={styles.sendButton}
-              onPress={sendMessage}
-          >
-            <Icon name="send" size={20} color={COLORS.white} />
-          </TouchableOpacity>
+            <TouchableOpacity
+                style={[styles.sendButton, messagingDisabled && styles.sendButtonDisabled]}
+                onPress={sendMessage}
+                disabled={messagingDisabled}
+            >
+              <Icon name="send" size={20} color={COLORS.white} />
+            </TouchableOpacity>
 
         </View>
 
@@ -364,6 +419,12 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
 
+  blockedMessages: {
+    alignItems: 'center',
+    gap: 8,
+    padding: 24,
+  },
+
 
   /* -------------------- CHAT BUBBLES -------------------- */
   messageContainer: {
@@ -430,6 +491,10 @@ const styles = StyleSheet.create({
     maxHeight: 100,
   },
 
+  inputDisabled: {
+    opacity: 0.6,
+  },
+
   sendButton: {
     backgroundColor: COLORS.primary,
     width: 44,
@@ -439,4 +504,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
+  sendButtonDisabled: {
+    backgroundColor: '#9CA3AF',
+  },
+
+  blockNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#EFF6FF',
+    borderBottomWidth: 1,
+    borderColor: '#DBEAFE',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+
+  blockNoticeText: {
+    color: '#1F2937',
+    flex: 1,
+  },
+  
 });

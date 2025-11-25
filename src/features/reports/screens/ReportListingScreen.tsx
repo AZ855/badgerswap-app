@@ -2,22 +2,22 @@ import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import {
-    collection,
-    db,
-    doc,
-    getDoc,
-    serverTimestamp,
-    setDoc,
+  collection,
+  db,
+  doc,
+  getDoc,
+  serverTimestamp,
+  setDoc,
 } from '../../../lib/firebase';
 import { COLORS } from '../../../theme/colors';
 import { useAuth } from '../../auth/AuthProvider';
@@ -54,7 +54,7 @@ export default function ReportListingScreen() {
     !selectedReason || (isOtherSelected && !note.trim()) || submitting || alreadyReported;
 
   useLayoutEffect(() => {
-    navigation.setOptions({ title: 'Issue Report' });
+    navigation.setOptions({ title: 'Report this listing' });
   }, [navigation]);
 
   useEffect(() => {

@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useBlockingStatus } from '../../../hooks/useBlockingStatus';
 import { db, doc, onSnapshot } from '../../../lib/firebase';
 import { COLORS } from '../../../theme/colors';
 import { useAuth } from '../../auth/AuthProvider';
@@ -45,6 +46,10 @@ export default function ItemDetailScreen() {
   const [statusBusy, setStatusBusy] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const { user } = useAuth();
+  const { isBlocked, blockedByOther, loading: blockLoading } = useBlockingStatus(
+    user?.uid,
+    item?.sellerId
+  );
 
   // Live Firestore subscription keeps the detail view fresh during edits
   useEffect(() => {
@@ -279,6 +284,28 @@ export default function ItemDetailScreen() {
     );
   }
 
+  if (blockLoading) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
+
+  if (isBlocked || blockedByOther) {
+    return (
+      <View style={[styles.container, styles.center, { padding: 24 }]}> 
+        <Feather name="slash" size={32} color="#9CA3AF" />
+        <Text style={{ marginTop: 12, color: '#6B7280', textAlign: 'center' }}>
+          This listing is unavailable because blocking is in place between you and the seller.
+        </Text>
+        <TouchableOpacity style={{ marginTop: 20 }} onPress={() => router.back()}>
+          <Text style={{ color: COLORS.primary, fontWeight: '600' }}>Go back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+  
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -420,7 +447,23 @@ export default function ItemDetailScreen() {
 
           {/* Report Button */}
           {!isOwnListing && (
-            <TouchableOpacity style={styles.reportButton}>
+            <TouchableOpacity
+            style={styles.reportButton}
+            onPress={() => {
+              if (!user?.uid) {
+                Alert.alert('Sign in required', 'Please log in to submit a report.', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Log in', onPress: () => router.push('/login') },
+                ]);
+                return;
+              }
+
+              router.push({
+                pathname: '/report-listing/[itemId]',
+                params: { itemId: item.id, title: item.title },
+              });
+            }}
+          >
               <Feather name="flag" size={16} color={COLORS.primary} />
               <Text style={styles.reportText}>Report this listing</Text>
             </TouchableOpacity>

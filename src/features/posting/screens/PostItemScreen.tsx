@@ -85,6 +85,15 @@ export default function PostItemScreen() {
   const [posting, setPosting] = useState(false);
   const [editingListingId, setEditingListingId] = useState<string | null>(null);
   const [initializedFromEdit, setInitializedFromEdit] = useState(false);
+  const [originalListingSnapshot, setOriginalListingSnapshot] = useState<{
+    title: string;
+    categories: string[];
+    condition: Item['condition'] | '';
+    price: string;
+    description: string;
+    location: LocationSelection | null;
+    imageUris: string[];
+  } | null>(null);
 
   const isEditing = Boolean(editingListingId);
 
@@ -101,13 +110,59 @@ export default function PostItemScreen() {
       typeof locationSelection?.lng === 'number'
   );
 
+  const normalizeLocation = (selection: LocationSelection | null) => {
+    if (!selection) return null;
+    return {
+      description: selection.description?.trim() ?? '',
+      lat: typeof selection.lat === 'number' ? selection.lat : null,
+      lng: typeof selection.lng === 'number' ? selection.lng : null,
+    } as const;
+  };
+
+  const hasEditingChanges = (() => {
+    if (!isEditing || !originalListingSnapshot) return false;
+
+    const normalizedLocation = normalizeLocation(locationSelection);
+    const originalLocation = normalizeLocation(originalListingSnapshot.location);
+
+    const categoriesChanged =
+      originalListingSnapshot.categories.length !== categories.length ||
+      originalListingSnapshot.categories.some((cat) => !categories.includes(cat)) ||
+      categories.some((cat) => !originalListingSnapshot.categories.includes(cat));
+
+    const imagesChanged = (() => {
+      const currentUris = images
+        .map((img) => img.remoteUrl ?? img.localUri)
+        .filter((uri): uri is string => Boolean(uri));
+      if (currentUris.length !== originalListingSnapshot.imageUris.length) return true;
+      return currentUris.some((uri, idx) => uri !== originalListingSnapshot.imageUris[idx]);
+    })();
+
+    const locationChanged =
+      normalizedLocation?.description !== originalLocation?.description ||
+      normalizedLocation?.lat !== originalLocation?.lat ||
+      normalizedLocation?.lng !== originalLocation?.lng;
+
+    return (
+      title !== originalListingSnapshot.title ||
+      price !== originalListingSnapshot.price ||
+      description !== originalListingSnapshot.description ||
+      condition !== originalListingSnapshot.condition ||
+      categoriesChanged ||
+      imagesChanged ||
+      locationChanged
+    );
+  })();
+
+  const shouldShowActions = isEditing ? hasEditingChanges : isFormValid;
+
   useEffect(() => {
     Animated.timing(actionsAnim, {
-      toValue: isFormValid && !posting ? 1 : 0,
+      toValue: shouldShowActions && !posting ? 1 : 0,
       duration: 220,
       useNativeDriver: true,
     }).start();
-  }, [isFormValid, posting, actionsAnim]);
+  }, [shouldShowActions, posting, actionsAnim]);
 
   useEffect(() => {
     if (initializedFromEdit) return;
@@ -134,6 +189,23 @@ export default function PostItemScreen() {
         remoteUrl: url,
       }))
     );
+
+    setOriginalListingSnapshot({
+      title: parsed.title ?? '',
+      categories: parsed.category ? [parsed.category] : [],
+      condition: (parsed.condition as Item['condition']) ?? '',
+      price: String(parsed.price ?? ''),
+      description: parsed.description ?? '',
+      location:
+        parsed.location || parsed.locationCoordinates
+          ? {
+              description: parsed.location ?? parsed.locationCoordinates?.lat?.toString() ?? '',
+              lat: parsed.locationCoordinates?.lat,
+              lng: parsed.locationCoordinates?.lng,
+            }
+          : null,
+      imageUris: (parsed.imageUrls ?? []).filter((url): url is string => Boolean(url)),
+    });
 
     setInitializedFromEdit(true);
   }, [params.editItem, initializedFromEdit]);
@@ -215,6 +287,9 @@ export default function PostItemScreen() {
 
   // Basic client-side validation prevents wasted uploads + Firestore writes.
   const ensureFormReady = () => {
+    const normalizedLocation = normalizeLocation(locationSelection);
+    const normalizedOriginalLocation = normalizeLocation(originalListingSnapshot?.location ?? null);
+
     if (!title.trim()) {
       Alert.alert('Missing Info', 'Please enter a title');
       return false;
@@ -243,9 +318,24 @@ export default function PostItemScreen() {
       Alert.alert('Missing Info', 'Please select a pickup location');
       return false;
     }
+    const requiresCoordinates = (() => {
+      if (!isEditing) return true;
+      if (!originalListingSnapshot) return true;
+
+      const hadOriginalLocation = Boolean(normalizedOriginalLocation?.description);
+      if (!hadOriginalLocation) return true;
+
+      const locationChanged =
+        normalizedLocation?.description !== normalizedOriginalLocation?.description ||
+        normalizedLocation?.lat !== normalizedOriginalLocation?.lat ||
+        normalizedLocation?.lng !== normalizedOriginalLocation?.lng;
+
+      return locationChanged;
+    })();
+
     if (
-      typeof locationSelection?.lat !== 'number' ||
-      typeof locationSelection?.lng !== 'number'
+      requiresCoordinates &&
+      (typeof normalizedLocation?.lat !== 'number' || typeof normalizedLocation?.lng !== 'number')
     ) {
       Alert.alert(
         'Confirm location',
@@ -650,7 +740,7 @@ export default function PostItemScreen() {
 
       {/* Slide-up Actions */}
       <Animated.View
-        pointerEvents={isFormValid && !posting ? 'auto' : 'none'}
+        pointerEvents={shouldShowActions && !posting ? 'auto' : 'none'}
         style={[
           styles.bottomActions,
           {

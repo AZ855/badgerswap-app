@@ -90,7 +90,7 @@ function LayoutContent() {
           }}
         />
         <Stack.Screen
-          name="report-listing"
+          name="report-listing/[itemId]"
           options={{
             title: 'Report this listing',
           }}
@@ -119,6 +119,9 @@ function LayoutContent() {
         <Stack.Screen name="settings" options={{ title: 'Settings and activity' }} />
         <Stack.Screen name="activity" options={{ title: 'Activity' }} />
         <Stack.Screen name="seller-profile" options={{ headerShown: false }} />
+        <Stack.Screen name="account-privacy" options={{ title: 'Account privacy' }} />
+        <Stack.Screen name="blocked" options={{ title: 'Blocked list' }} />
+        <Stack.Screen name="block-user" options={{ title: '', headerTitle: 'Settings' }} />
       </Stack>
       {showNav && <BottomNav />}
     </>

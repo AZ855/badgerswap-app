@@ -136,12 +136,41 @@ export async function getOrCreateThread({
 export async function sendMessage(
     threadId: string,
     senderId: string,
-    text: string
+    text: string,
+    recipientId?: string
 ) {
 
     if (!text.trim()) return;
 
     const threadRef = doc(db, "chats", threadId);
+    const snap = await getDoc(threadRef);
+    const data = snap.data();
+
+    if (!data) return;
+
+    const otherUser = recipientId || data.participants.find(
+        (p: string) => p !== senderId
+    );
+
+    if (!otherUser) return;
+
+    const [senderSnap, otherSnap] = await Promise.all([
+        getDoc(doc(db, "users", senderId)),
+        getDoc(doc(db, "users", otherUser)),
+    ]);
+
+    const senderBlocked = Array.isArray(senderSnap.data()?.blockedUserIds)
+        ? senderSnap.data()?.blockedUserIds.includes(otherUser)
+        : false;
+
+    const recipientBlocked = Array.isArray(otherSnap.data()?.blockedUserIds)
+        ? otherSnap.data()?.blockedUserIds.includes(senderId)
+        : false;
+
+    if (senderBlocked || recipientBlocked) {
+        throw new Error('Messaging is blocked between these users.');
+    }
+
     const messagesRef = collection(threadRef, "messages");
 
     await addDoc(messagesRef, {
@@ -149,16 +178,7 @@ export async function sendMessage(
         text,
         createdAt: serverTimestamp(),
     });
-
-    const snap = await getDoc(threadRef);
-    const data = snap.data();
-
-    if (!data) return;
-
-    const otherUser = data.participants.find(
-        (p: string) => p !== senderId
-    );
-
+    
     await updateDoc(threadRef, {
         lastMessage: text,
         timestamp: serverTimestamp(),

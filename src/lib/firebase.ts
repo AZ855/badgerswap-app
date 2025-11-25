@@ -17,6 +17,8 @@ import {
 } from 'firebase/auth';
 import {
   addDoc,
+  arrayRemove,
+  arrayUnion,
   collection,
   deleteDoc,
   doc,
@@ -70,6 +72,8 @@ export const db = getFirestore(app);
 // Re-export commonly used helpers so other files can import from a single module.
 export {
   EmailAuthProvider, addDoc,
+  arrayRemove,
+  arrayUnion,
   collection,
   createUserWithEmailAndPassword,
   deleteDoc,

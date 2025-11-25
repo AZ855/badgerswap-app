@@ -148,7 +148,7 @@ export default function SettingsScreen() {
       <Row
         icon="slash"
         title="Blocked"
-        onPress={() => Alert.alert('Blocked list coming soon')}
+        href="/blocked"
       />
 
       {/* About */}

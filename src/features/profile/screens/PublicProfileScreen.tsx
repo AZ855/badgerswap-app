@@ -8,6 +8,7 @@ import {
     Text,
     View,
 } from 'react-native';
+import { useBlockingStatus } from '../../../hooks/useBlockingStatus';
 import {
     collection,
     db,
@@ -36,6 +37,7 @@ export default function PublicProfileScreen() {
   const params = useLocalSearchParams<{ userId?: string }>();
   const sellerId = typeof params.userId === 'string' ? params.userId : '';
   const { user } = useAuth();
+  const { isBlocked, blockedByOther, loading: blockLoading } = useBlockingStatus(user?.uid, sellerId);
 
   const [profile, setProfile] = useState<ProfileDoc | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -45,7 +47,8 @@ export default function PublicProfileScreen() {
   const [listingsLoading, setListingsLoading] = useState(true);
 
   const isSelf = user?.uid === sellerId;
-  const hideDetails = !isSelf && Boolean(profile?.isPrivate);
+  const isBlockedView = !isSelf && (isBlocked || blockedByOther);
+  const hideDetails = isBlockedView || (!isSelf && Boolean(profile?.isPrivate));
 
   const username = useMemo(() => {
     const email = profile?.email ?? '';
@@ -125,7 +128,7 @@ export default function PublicProfileScreen() {
     return unsubscribe;
   }, [sellerId, hideDetails]);
 
-  if (profileLoading) {
+  if (blockLoading || profileLoading) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={COLORS.primary} />
@@ -133,6 +136,20 @@ export default function PublicProfileScreen() {
     );
   }
 
+  if (isBlockedView) {
+    return (
+      <View style={styles.centered}>
+        <Feather name="slash" size={24} color={COLORS.primary} />
+        <Text style={styles.errorText}>Profile unavailable</Text>
+        <Text style={{ color: '#6B7280', textAlign: 'center' }}>
+          {isBlocked
+            ? 'You blocked this user. Unblock them from Settings to view their profile.'
+            : 'This user has blocked you. You cannot view their profile or listings.'}
+        </Text>
+      </View>
+    );
+  }
+  
   if (profileError) {
     return (
       <View style={styles.centered}>
