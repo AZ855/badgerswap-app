@@ -35,7 +35,7 @@ const OPTIONS: {
   {
     key: 'marketplaceActivity',
     title: 'Marketplace activity',
-    description: 'Alerts for offers, saved items that change, and updates to your listings.',
+    description: 'Alerts for saved items that change, and updates to your listings.',
   },
   {
     key: 'reminders',
