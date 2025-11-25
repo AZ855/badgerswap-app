@@ -3,16 +3,20 @@ import { Link, Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, TouchableOpacity, View } from 'react-native';
 import BottomNav from '../src/components/BottomNav';
+import { ToastProvider } from '../src/components/ToastProvider';
 import { AuthProvider, useAuth } from '../src/features/auth/AuthProvider';
+import { useMessageNotifications } from '../src/features/chat/useMessageNotifications';
 import { COLORS } from '../src/theme/colors';
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <AuthGate>
-        <LayoutContent />
-      </AuthGate>
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <AuthGate>
+          <LayoutContent />
+        </AuthGate>
+      </AuthProvider>
+    </ToastProvider>
   );
 }
 
@@ -55,6 +59,7 @@ function LayoutContent() {
 
   return (
     <>
+      <MessageNotificationListener />
       <Stack
         screenOptions={{
           headerStyle: {
@@ -127,4 +132,9 @@ function LayoutContent() {
       {showNav && <BottomNav />}
     </>
   );
+}
+
+function MessageNotificationListener() {
+  useMessageNotifications();
+  return null;
 }
