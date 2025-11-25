@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { COLORS } from '../../../theme/colors';
-import { signInUW } from '../api';
+import { sendUWPasswordReset, signInUW } from '../api';
 
 const UW_EMAIL_RE = /^[a-z0-9._%+-]+@wisc\.edu$/i;
 
@@ -21,6 +21,7 @@ export default function LoginScreen() {
   const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState('');
   const [passwordTouched, setPasswordTouched] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const emailError = useMemo(() => {
     const value = email.trim().toLowerCase();
@@ -59,6 +60,33 @@ export default function LoginScreen() {
       Alert.alert('Login failed', message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!emailTouched) setEmailTouched(true);
+
+    if (emailError) {
+      Alert.alert('Enter your UW email', emailError);
+      return;
+    }
+
+    setResetting(true);
+    try {
+      await sendUWPasswordReset(email);
+      Alert.alert(
+        'Reset email sent',
+        'Check your UW–Madison inbox for instructions to reset your password.'
+      );
+    } catch (err: any) {
+      console.error('Password reset error', err);
+      let message = err?.message ?? 'Unable to send reset email. Please try again.';
+      if (err?.code === 'auth/user-not-found') {
+        message = 'No account found with that email address.';
+      }
+      Alert.alert('Reset failed', message);
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -120,6 +148,16 @@ export default function LoginScreen() {
 
           <TouchableOpacity onPress={() => router.push('/register')}>
             <Text style={styles.linkText}>No account? Create one</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleForgotPassword}
+            disabled={resetting}
+            style={styles.forgotLink}
+          >
+            <Text style={[styles.linkText, styles.forgotText]}>
+              {resetting ? 'Sending reset email…' : 'Forgot password?'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -194,5 +232,11 @@ const styles = StyleSheet.create({
     color: COLORS.secondary,
     marginTop: 14,
     fontSize: 14,
+  },
+  forgotLink: {
+    alignSelf: 'center',
+  },
+  forgotText: {
+    marginTop: 10,
   },
 });
