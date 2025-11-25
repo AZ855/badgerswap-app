@@ -266,6 +266,16 @@ export default function ItemPreviewScreen() {
             <Text style={styles.postedDate}>Just now</Text>
           </View>
 
+          <View style={styles.locationCard}>
+            <View style={styles.locationIcon}>
+              <Icon name="map-pin" size={18} color={COLORS.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.locationLabel}>Pickup location</Text>
+              <Text style={styles.locationValue}>{payload.location}</Text>
+            </View>
+          </View>
+
           {/* Seller Info (Preview - Your profile) */}
           <View style={styles.sellerCard}>
             <View style={styles.sellerLeft}>
@@ -426,6 +436,36 @@ const styles = StyleSheet.create({
   conditionBadge: { backgroundColor: '#DBEAFE', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
   conditionText: { color: '#1E40AF', fontSize: 12, fontWeight: '600' },
   postedDate: { fontSize: 14, color: '#6B7280' },
+  locationCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: COLORS.white,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 16,
+  },
+  locationIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  locationLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  locationValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+  },
   sellerCard: {
     backgroundColor: COLORS.white,
     padding: 16,
