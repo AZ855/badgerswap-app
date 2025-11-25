@@ -327,24 +327,28 @@ export default function ProfileScreen() {
     [pullRefresh, collapseEnabled, isCollapsed, scrollY]
   );
 
+  const headerContent = (
+    <Pressable
+      onPress={() => {
+        const now = Date.now();
+        if (now - lastTapRef.current < 300) {
+          if (listRef.current?.scrollToOffset) {
+            listRef.current.scrollToOffset({ offset: 0, animated: true });
+          }
+        }
+        lastTapRef.current = now;
+      }}
+      style={{ paddingTop: topPad }}
+    >
+      {header}
+      {tabs}
+      {controls}
+      <View style={{ height: 12 }} />
+    </Pressable>
+  );
+
   return (
     <View style={styles.container}>
-      <Pressable
-        onPress={() => {
-          const now = Date.now();
-          if (now - lastTapRef.current < 300) {
-            if (listRef.current?.scrollToOffset) {
-              listRef.current.scrollToOffset({ offset: 0, animated: true });
-            }
-          }
-          lastTapRef.current = now;
-        }}
-        style={{ paddingTop: topPad }}
-      >
-        {header}
-        {tabs}
-        {controls}
-      </Pressable>
       <View style={{ flex: 1 }}>
         {pullRefresh.indicator}
         <Animated.FlatList
@@ -372,7 +376,9 @@ export default function ProfileScreen() {
               : undefined
           }
           ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-          ListHeaderComponent={<View style={{ height: 12 }} />}
+          ListHeaderComponent={
+            <View style={{ backgroundColor: COLORS.background }}>{headerContent}</View>
+          }
           ListFooterComponent={
             spacerHeight ? <View style={{ height: spacerHeight }} /> : null
           }

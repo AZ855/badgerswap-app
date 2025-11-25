@@ -3,16 +3,21 @@ import { Link, Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, TouchableOpacity, View } from 'react-native';
 import BottomNav from '../src/components/BottomNav';
+import { ToastProvider } from '../src/components/ToastProvider';
 import { AuthProvider, useAuth } from '../src/features/auth/AuthProvider';
+import { useMessageNotifications } from '../src/features/chat/useMessageNotifications';
+import { useMarketplaceNotifications } from '../src/features/marketplace/useMarketplaceNotifications.ts';
 import { COLORS } from '../src/theme/colors';
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <AuthGate>
-        <LayoutContent />
-      </AuthGate>
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <AuthGate>
+          <LayoutContent />
+        </AuthGate>
+      </AuthProvider>
+    </ToastProvider>
   );
 }
 
@@ -55,6 +60,7 @@ function LayoutContent() {
 
   return (
     <>
+      <NotificationListeners />
       <Stack
         screenOptions={{
           headerStyle: {
@@ -117,6 +123,7 @@ function LayoutContent() {
         <Stack.Screen name="change-password" options={{ title: 'Change password' }} />
         <Stack.Screen name="login-activity" options={{ title: 'Login activity' }} />
         <Stack.Screen name="settings" options={{ title: 'Settings and activity' }} />
+        <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
         <Stack.Screen name="activity" options={{ title: 'Activity' }} />
         <Stack.Screen name="seller-profile" options={{ headerShown: false }} />
         <Stack.Screen name="account-privacy" options={{ title: 'Account privacy' }} />
@@ -126,4 +133,10 @@ function LayoutContent() {
       {showNav && <BottomNav />}
     </>
   );
+}
+
+function NotificationListeners() {
+  useMessageNotifications();
+  useMarketplaceNotifications();
+  return null;
 }

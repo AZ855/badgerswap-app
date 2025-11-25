@@ -22,6 +22,7 @@ export interface UseListingsOptions {
 
 type ListingDoc = {
   title?: string;
+  titleNormalized?: string;
   price?: number;
   imageUrls?: unknown;
   category?: string;

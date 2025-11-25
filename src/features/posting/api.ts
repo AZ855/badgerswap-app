@@ -5,13 +5,64 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
+  limit,
+  query,
   serverTimestamp,
   updateDoc,
+  where,
 } from '../../lib/firebase';
 import type { Category, Item } from '../marketplace/types';
 import { mapListingFromDoc } from '../marketplace/useListings';
 
 type ListingDocData = Parameters<typeof mapListingFromDoc>[1];
+
+function normalizeTitle(title: string): string {
+  return title.trim();
+}
+
+function normalizeTitleForComparison(title: string): string {
+  return normalizeTitle(title).toLowerCase();
+}
+
+async function assertUniqueTitleForSeller(
+  title: string,
+  sellerId: string,
+  excludeListingId?: string
+) {
+  const titleForComparison = normalizeTitleForComparison(title);
+
+  const normalizedMatches = await getDocs(
+    query(
+      collection(db, 'listings'),
+      where('sellerId', '==', sellerId),
+      where('titleNormalized', '==', titleForComparison),
+      limit(1)
+    )
+  );
+
+  let duplicate = normalizedMatches.docs.find((docSnap) => docSnap.id !== excludeListingId);
+
+  if (!duplicate) {
+    const sellerListings = await getDocs(query(collection(db, 'listings'), where('sellerId', '==', sellerId)));
+
+    duplicate = sellerListings.docs.find((docSnap) => {
+      if (docSnap.id === excludeListingId) return false;
+
+      const data = docSnap.data() as ListingDocData;
+      const docNormalized =
+        typeof data.titleNormalized === 'string'
+          ? data.titleNormalized
+          : normalizeTitleForComparison(data.title ?? '');
+
+      return docNormalized === titleForComparison;
+    });
+  }
+
+  if (duplicate) {
+    throw new Error('You already posted an item with this title. Please choose a new title.');
+  }
+}
 
 export interface NewListingInput {
   title: string;
@@ -41,8 +92,14 @@ export interface ListingUpdate {
 
 // Centralizes the Firestore write so UI screens just pass normalized data + a user id.
 export async function createListing(input: NewListingInput, userId: string): Promise<Item> {
+  await assertUniqueTitleForSeller(input.title, userId);
+
+  const normalizedTitle = normalizeTitle(input.title);
+  const titleForComparison = normalizeTitleForComparison(input.title);
+
   const docRef = await addDoc(collection(db, 'listings'), {
-    title: input.title,
+    title: normalizedTitle,
+    titleNormalized: titleForComparison,
     price: input.price,
     category: input.category,
     condition: input.condition,
@@ -71,6 +128,7 @@ export async function updateListing(listingId: string, updates: ListingUpdate): 
     Pick<
       ListingDocData,
       | 'title'
+      | 'titleNormalized'
       | 'price'
       | 'category'
       | 'condition'
@@ -84,7 +142,25 @@ export async function updateListing(listingId: string, updates: ListingUpdate): 
 
   const payload: ListingUpdatePayload = {};
 
-  if (rest.title !== undefined) payload.title = rest.title;
+  const ref = doc(db, 'listings', listingId);
+
+  const normalizedTitle = rest.title ? normalizeTitle(rest.title) : undefined;
+  const titleForComparison = rest.title ? normalizeTitleForComparison(rest.title) : undefined;
+
+  if (normalizedTitle !== undefined) {
+    const currentSnap = await getDoc(ref);
+    if (!currentSnap.exists()) {
+      throw new Error('Listing not found.');
+    }
+    const currentData = currentSnap.data() as ListingDocData;
+    const sellerId = typeof currentData.sellerId === 'string' ? currentData.sellerId : '';
+    if (!sellerId) {
+      throw new Error('Unable to verify the listing owner.');
+    }
+    await assertUniqueTitleForSeller(normalizedTitle, sellerId, listingId);
+    payload.title = normalizedTitle;
+    payload.titleNormalized = titleForComparison;
+  }
   if (rest.price !== undefined) payload.price = rest.price;
   if (rest.category !== undefined) payload.category = rest.category;
   if (rest.condition !== undefined) payload.condition = rest.condition;
@@ -106,7 +182,6 @@ export async function updateListing(listingId: string, updates: ListingUpdate): 
     throw new Error('No updates provided for this listing.');
   }
 
-  const ref = doc(db, 'listings', listingId);
   await updateDoc(ref, payload);
 
   const snap = await getDoc(ref);

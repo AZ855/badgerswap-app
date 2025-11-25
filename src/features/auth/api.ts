@@ -4,6 +4,7 @@ import {
   db,
   doc,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   serverTimestamp,
   setDoc,
   signInWithEmailAndPassword,
@@ -74,6 +75,15 @@ export async function signInUW(
 
 export async function signOutUW() {
   await auth.signOut();
+}
+
+export async function sendUWPasswordReset(email: string) {
+  const normalized = normalizeEmail(email);
+  if (!UW_EMAIL_RE.test(normalized)) {
+    throw new Error('Please use a UW–Madison email (@wisc.edu).');
+  }
+
+  await sendPasswordResetEmail(auth, normalized);
 }
 
 export function subscribeAuthState(

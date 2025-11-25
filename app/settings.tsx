@@ -59,10 +59,12 @@ export default function SettingsScreen() {
 
   const { user } = useAuth();
   const [isPrivate, setIsPrivate] = useState(false);
+  const [notificationSummary, setNotificationSummary] = useState('On');
 
   useEffect(() => {
     if (!user?.uid) {
       setIsPrivate(false);
+      setNotificationSummary('On');
       return;
     }
 
@@ -71,14 +73,25 @@ export default function SettingsScreen() {
       userRef,
       (snap) => {
         if (snap.exists()) {
-          const data = snap.data() as { isPrivate?: boolean };
+          const data = snap.data() as {
+            isPrivate?: boolean;
+            notificationPreferences?: Record<string, boolean>;
+          };
           setIsPrivate(Boolean(data.isPrivate));
+          const prefs = data.notificationPreferences;
+          if (prefs && Object.keys(prefs).length > 0) {
+            const enabled = Object.values(prefs).some((value) => value !== false);
+            setNotificationSummary(enabled ? 'On' : 'Off');
+          } else {
+            setNotificationSummary('On');
+          }
         } else {
           setIsPrivate(false);
+          setNotificationSummary('On');
         }
       },
       (error) => {
-        console.warn('Failed to read privacy status', error);
+        console.warn('Failed to read settings', error);
       }
     );
 
@@ -134,7 +147,9 @@ export default function SettingsScreen() {
       <Row
         icon="bell"
         title="Notifications"
-        onPress={() => Alert.alert('Notifications coming soon')}
+        subtitle="Messages, listings, reminders"
+        href="/notifications"
+        right={<Text style={{ color: '#9CA3AF' }}>{notificationSummary}</Text>}
       />
 
       {/* Who can see your content */}
