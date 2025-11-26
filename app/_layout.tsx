@@ -6,7 +6,7 @@ import BottomNav from '../src/components/BottomNav';
 import { ToastProvider } from '../src/components/ToastProvider';
 import { AuthProvider, useAuth } from '../src/features/auth/AuthProvider';
 import { useMessageNotifications } from '../src/features/chat/useMessageNotifications';
-import { useMarketplaceNotifications } from '../src/features/marketplace/useMarketplaceNotifications.ts';
+import { useMarketplaceNotifications } from '../src/features/marketplace/useMarketplaceNotifications';
 import { COLORS } from '../src/theme/colors';
 
 export default function RootLayout() {
@@ -85,6 +85,7 @@ function LayoutContent() {
           }}
         />
         <Stack.Screen name="item-detail" options={{ title: 'Item Details' }} />
+        <Stack.Screen name="item-preview" options={{ title: 'Item preview' }} />
         <Stack.Screen name="post-item" options={{ title: 'Post Item', gestureEnabled: false, animation: 'none' }} />
         <Stack.Screen name="chat-list" options={{ title: 'Messages', gestureEnabled: false, animation: 'none' }} />
         <Stack.Screen name="chat" options={{ headerShown: false }} />
