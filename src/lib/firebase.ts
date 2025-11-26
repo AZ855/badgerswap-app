@@ -1,7 +1,8 @@
 // Centralized Firebase bootstrap so every feature imports the same app/auth/db instances.
-import { getReactNativePersistence, initializeAuth } from '@firebase/auth/dist/rn/index.js';
+import { getReactNativePersistence, initializeAuth } from "@firebase/auth/dist/rn/index.js";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApps, initializeApp } from 'firebase/app';
+
 import {
   EmailAuthProvider,
   createUserWithEmailAndPassword,
@@ -16,6 +17,7 @@ import {
   type Auth,
   type User,
 } from 'firebase/auth';
+
 import {
   addDoc,
   arrayRemove,
@@ -36,13 +38,15 @@ import {
   where,
   writeBatch
 } from 'firebase/firestore';
+
+import { getStorage } from 'firebase/storage';       // ⭐ ADDED
 import { Platform } from 'react-native';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY!,
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN!,
   projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID!,
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET!,
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET!,   // ⭐ Storage bucket already here
   messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID!,
 };
@@ -70,9 +74,13 @@ if (Platform.OS === 'web') {
 export const auth = authInstance;
 export const db = getFirestore(app);
 
+// ⭐⭐ NEW: Initialize and export Firebase Storage
+export const storage = getStorage(app);
+
 // Re-export commonly used helpers so other files can import from a single module.
 export {
-  EmailAuthProvider, addDoc,
+  EmailAuthProvider,
+  addDoc,
   arrayRemove,
   arrayUnion,
   collection,

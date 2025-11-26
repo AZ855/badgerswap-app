@@ -25,6 +25,10 @@ import {
 
 import { db } from "../../lib/firebase";
 
+// Photo upload
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { storage } from "../../lib/firebase";
+
 // ---------------------------------------------------------------------
 // Type Definitions (added to remove TS errors — NO logic changes)
 // ---------------------------------------------------------------------
@@ -47,8 +51,12 @@ export interface ChatMessage {
     createdAt?: any; // Firestore timestamp
 
     // --------------------------------------------------------------
-    // Message Reactions (new)
-    // reactions[userId] = "like" | "love" | "laugh"
+    // Photo attachment (new)
+    // --------------------------------------------------------------
+    photoUrl?: string;
+
+    // --------------------------------------------------------------
+    // Message Reactions (existing)
     // --------------------------------------------------------------
     reactions?: Record<string, string | null>;
 }
@@ -79,30 +87,29 @@ export interface ChatThread {
 export function makeThreadId(buyerId: string, sellerId: string) {
     const sortedA = buyerId < sellerId ? buyerId : sellerId;
     const sortedB = buyerId < sellerId ? sellerId : buyerId;
-    const threadId = `${sortedA}_${sortedB}`;
-    return threadId;
+    return `${sortedA}_${sortedB}`;
 }
 
 // =====================================================================
 // 2. CREATE OR UPDATE A THREAD
 // =====================================================================
-export async function getOrCreateThread({
-                                            itemId,
-                                            itemName,
-                                            sellerId,
-                                            buyerId,
-                                            sellerName,
-                                            sellerInitials,
-                                            buyerName,
-                                            buyerInitials,
-                                        }: ThreadContext) {
+export async function getOrCreateThread(ctx: ThreadContext) {
+    const {
+        itemId,
+        itemName,
+        sellerId,
+        buyerId,
+        sellerName,
+        sellerInitials,
+        buyerName,
+        buyerInitials,
+    } = ctx;
 
     const threadId = makeThreadId(buyerId, sellerId);
     const ref = doc(db, "chats", threadId);
     const snap = await getDoc(ref);
-    const exists = snap.exists();
 
-    if (!exists) {
+    if (!snap.exists()) {
         await setDoc(ref, {
             threadId,
             itemId,
@@ -137,7 +144,7 @@ export async function getOrCreateThread({
 }
 
 // =====================================================================
-// 3. SEND MESSAGE
+// 3. SEND TEXT MESSAGE
 // =====================================================================
 export async function sendMessage(
     threadId: string,
@@ -145,13 +152,11 @@ export async function sendMessage(
     text: string,
     recipientId?: string
 ) {
-
     if (!text.trim()) return;
 
     const threadRef = doc(db, "chats", threadId);
     const snap = await getDoc(threadRef);
     const data = snap.data();
-
     if (!data) return;
 
     const otherUser =
@@ -160,18 +165,19 @@ export async function sendMessage(
 
     if (!otherUser) return;
 
+    // Check blocks
     const [senderSnap, otherSnap] = await Promise.all([
         getDoc(doc(db, "users", senderId)),
         getDoc(doc(db, "users", otherUser)),
     ]);
 
-    const senderBlocked = Array.isArray(senderSnap.data()?.blockedUserIds)
-        ? senderSnap.data()?.blockedUserIds.includes(otherUser)
-        : false;
+    const senderBlocked =
+        Array.isArray(senderSnap.data()?.blockedUserIds) &&
+        senderSnap.data()?.blockedUserIds.includes(otherUser);
 
-    const recipientBlocked = Array.isArray(otherSnap.data()?.blockedUserIds)
-        ? otherSnap.data()?.blockedUserIds.includes(senderId)
-        : false;
+    const recipientBlocked =
+        Array.isArray(otherSnap.data()?.blockedUserIds) &&
+        otherSnap.data()?.blockedUserIds.includes(senderId);
 
     if (senderBlocked || recipientBlocked) {
         throw new Error("Messaging is blocked between these users.");
@@ -193,13 +199,66 @@ export async function sendMessage(
 }
 
 // =====================================================================
+// 3B. SEND PHOTO MESSAGE (NEW FEATURE)
+// =====================================================================
+export async function sendPhoto(
+    threadId: string,
+    senderId: string,
+    localUri: string,
+    recipientId?: string
+) {
+    if (!localUri) return;
+
+    const threadRef = doc(db, "chats", threadId);
+    const snap = await getDoc(threadRef);
+    const data = snap.data();
+    if (!data) return;
+
+    const otherUser =
+        recipientId ||
+        data.participants.find((p: string) => p !== senderId);
+
+    if (!otherUser) return;
+
+    // 1. Convert URI to Blob
+    const response = await fetch(localUri);
+    const blob = await response.blob();
+
+    // 2. Upload to Firebase Storage
+    const storageRef = ref(
+        storage,
+        `chatPhotos/${threadId}/${Date.now()}_${senderId}.jpg`
+    );
+
+    await uploadBytes(storageRef, blob);
+
+    // 3. Get public URL
+    const downloadUrl = await getDownloadURL(storageRef);
+
+    const messagesRef = collection(threadRef, "messages");
+
+    // 4. Save image message
+    await addDoc(messagesRef, {
+        senderId,
+        photoUrl: downloadUrl,
+        createdAt: serverTimestamp(),
+    });
+
+    // 5. Update thread preview
+    await updateDoc(threadRef, {
+        lastMessage: "[Photo]",
+        timestamp: serverTimestamp(),
+        [`unread.${otherUser}`]: (data.unread?.[otherUser] || 0) + 1,
+    });
+}
+
+// =====================================================================
 // 4. SUBSCRIBE TO MESSAGES
 // =====================================================================
 export function subscribeToMessages(
     threadId: string,
     callback: (msgs: ChatMessage[]) => void
 ) {
-
     const threadRef = doc(db, "chats", threadId);
     const messagesRef = collection(threadRef, "messages");
 
@@ -210,7 +269,6 @@ export function subscribeToMessages(
             id: d.id,
             ...d.data(),
         }));
-
         callback(messages);
     });
 }
@@ -222,7 +280,6 @@ export function subscribeToThreads(
     userId: string,
     callback: (threads: ChatThread[]) => void
 ) {
-
     const threadsRef = collection(db, "chats");
 
     const q = query(
@@ -235,9 +292,7 @@ export function subscribeToThreads(
             const data = d.data() as ChatThread;
             const participants = data.participants || [];
 
-            const otherId = participants.find(
-                (p: string) => p !== userId
-            );
+            const otherId = participants.find((p: string) => p !== userId);
 
             const partnerName =
                 otherId === data.sellerId
@@ -264,10 +319,7 @@ export function subscribeToThreads(
 // =====================================================================
 // 6. CLEAR UNREAD COUNT
 // =====================================================================
-export async function clearUnread(
-    threadId: string,
-    userId: string
-) {
+export async function clearUnread(threadId: string, userId: string) {
     const ref = doc(db, "chats", threadId);
 
     await updateDoc(ref, {
@@ -276,54 +328,28 @@ export async function clearUnread(
 }
 
 // =====================================================================
-// 7. MESSAGE REACTIONS (NEW FEATURE)
+// 7. MESSAGE REACTIONS (EXISTING FEATURE)
 // =====================================================================
-//
-// Reactions are stored in a "reactions" object on each message:
-// reactions[userId] = "like" | "love" | "laugh"
-//
-// - toggleReaction() sets or updates a user's reaction
-// - removeReaction() deletes only that user's reaction
-// - Firestore listeners automatically surface changes in the UI
-//
-// =====================================================================
-
-// Add or update a reaction for a user
 export async function toggleReaction(
     threadId: string,
     messageId: string,
     userId: string,
     reaction: "like" | "love" | "laugh"
 ) {
-    const msgRef = doc(
-        db,
-        "chats",
-        threadId,
-        "messages",
-        messageId
-    );
+    const msgRef = doc(db, "chats", threadId, "messages", messageId);
 
     await updateDoc(msgRef, {
         [`reactions.${userId}`]: reaction,
     });
 }
 
-// Remove a reaction (user taps the same reaction again)
 export async function removeReaction(
     threadId: string,
     messageId: string,
     userId: string
 ) {
-    const msgRef = doc(
-        db,
-        "chats",
-        threadId,
-        "messages",
-        messageId
-    );
+    const msgRef = doc(db, "chats", threadId, "messages", messageId);
 
-    // We use `null` instead of deleteField() because your project’s
-    // firebase wrapper does not export deleteField.
     await updateDoc(msgRef, {
         [`reactions.${userId}`]: null,
     });
