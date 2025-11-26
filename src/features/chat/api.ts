@@ -45,6 +45,12 @@ export interface ChatMessage {
     senderId?: string;
     text?: string;
     createdAt?: any; // Firestore timestamp
+
+    // --------------------------------------------------------------
+    // Message Reactions (new)
+    // reactions[userId] = "like" | "love" | "laugh"
+    // --------------------------------------------------------------
+    reactions?: Record<string, string | null>;
 }
 
 // Thread shape from Firestore
@@ -148,9 +154,9 @@ export async function sendMessage(
 
     if (!data) return;
 
-    const otherUser = recipientId || data.participants.find(
-        (p: string) => p !== senderId
-    );
+    const otherUser =
+        recipientId ||
+        data.participants.find((p: string) => p !== senderId);
 
     if (!otherUser) return;
 
@@ -168,7 +174,7 @@ export async function sendMessage(
         : false;
 
     if (senderBlocked || recipientBlocked) {
-        throw new Error('Messaging is blocked between these users.');
+        throw new Error("Messaging is blocked between these users.");
     }
 
     const messagesRef = collection(threadRef, "messages");
@@ -178,7 +184,7 @@ export async function sendMessage(
         text,
         createdAt: serverTimestamp(),
     });
-    
+
     await updateDoc(threadRef, {
         lastMessage: text,
         timestamp: serverTimestamp(),
@@ -200,7 +206,6 @@ export function subscribeToMessages(
     const q = query(messagesRef, orderBy("createdAt", "asc"));
 
     return onSnapshot(q, (snap) => {
-
         const messages: ChatMessage[] = snap.docs.map((d) => ({
             id: d.id,
             ...d.data(),
@@ -226,7 +231,6 @@ export function subscribeToThreads(
     );
 
     return onSnapshot(q, (snap) => {
-
         const threads: ChatThread[] = snap.docs.map((d) => {
             const data = d.data() as ChatThread;
             const participants = data.participants || [];
@@ -268,6 +272,60 @@ export async function clearUnread(
 
     await updateDoc(ref, {
         [`unread.${userId}`]: 0,
+    });
+}
+
+// =====================================================================
+// 7. MESSAGE REACTIONS (NEW FEATURE)
+// =====================================================================
+//
+// Reactions are stored in a "reactions" object on each message:
+// reactions[userId] = "like" | "love" | "laugh"
+//
+// - toggleReaction() sets or updates a user's reaction
+// - removeReaction() deletes only that user's reaction
+// - Firestore listeners automatically surface changes in the UI
+//
+// =====================================================================
+
+// Add or update a reaction for a user
+export async function toggleReaction(
+    threadId: string,
+    messageId: string,
+    userId: string,
+    reaction: "like" | "love" | "laugh"
+) {
+    const msgRef = doc(
+        db,
+        "chats",
+        threadId,
+        "messages",
+        messageId
+    );
+
+    await updateDoc(msgRef, {
+        [`reactions.${userId}`]: reaction,
+    });
+}
+
+// Remove a reaction (user taps the same reaction again)
+export async function removeReaction(
+    threadId: string,
+    messageId: string,
+    userId: string
+) {
+    const msgRef = doc(
+        db,
+        "chats",
+        threadId,
+        "messages",
+        messageId
+    );
+
+    // We use `null` instead of deleteField() because your project’s
+    // firebase wrapper does not export deleteField.
+    await updateDoc(msgRef, {
+        [`reactions.${userId}`]: null,
     });
 }
 

@@ -24,7 +24,7 @@
  *      ✔ UI is ALWAYS correct and synced
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Animated,
@@ -35,50 +35,51 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from 'react-native';
+} from "react-native";
 
-import { Feather as Icon } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Feather as Icon } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
-import { useBlockingStatus } from '../../../hooks/useBlockingStatus';
-import { usePullToRefresh } from '../../../hooks/usePullToRefresh';
-import { COLORS } from '../../../theme/colors';
-import { useAuth } from '../../auth/AuthProvider';
+import { useBlockingStatus } from "../../../hooks/useBlockingStatus";
+import { usePullToRefresh } from "../../../hooks/usePullToRefresh";
+import { COLORS } from "../../../theme/colors";
+import { useAuth } from "../../auth/AuthProvider";
 
 import {
   clearUnread,
   subscribeToMessages,
-} from '../api';
+  toggleReaction,
+  removeReaction,
+} from "../api";
 
-import { db, doc, getDoc } from '../../../lib/firebase';
-
-
+import { db, doc, getDoc } from "../../../lib/firebase";
 
 /* ======================================================================
  *  MAIN CHAT SCREEN
  * ====================================================================== */
 export default function ChatScreen() {
-
   const { user } = useAuth();
   const router = useRouter();
 
-  // threadId is the ONLY navigation param needed now
+  // threadId is the ONLY navigation param
   const { threadId } = useLocalSearchParams() as { threadId: string };
 
   // Header metadata (loaded from Firestore)
   const [partnerName, setPartnerName] = useState("User");
   const [partnerInitials, setPartnerInitials] = useState("U");
   const [itemName, setItemName] = useState("Item");
-  const [partnerId, setPartnerId] = useState('');
+  const [partnerId, setPartnerId] = useState("");
 
   // Message state
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<any[]>([]);
 
-
+  // Reaction picker
+  const [activeReactionTarget, setActiveReactionTarget] =
+      useState<string | null>(null);
 
   /* ====================================================================
-   * 1. Load thread header metadata from Firestore
+   * 1. Load thread header metadata
    * ==================================================================== */
   useEffect(() => {
     if (!user || !threadId) return;
@@ -91,10 +92,8 @@ export default function ChatScreen() {
 
       const data = snap.data();
 
-      // Determine the other participant
       const otherId = data.participants.find((p: string) => p !== user.uid);
 
-      // Name/initial selection logic
       const pName =
           otherId === data.sellerId ? data.sellerName : data.buyerName;
 
@@ -104,46 +103,40 @@ export default function ChatScreen() {
       setPartnerName(pName || "User");
       setPartnerInitials((pInitials || "U").toUpperCase());
       setItemName(data.itemName || "Item");
-      setPartnerId(otherId || '');
+      setPartnerId(otherId || "");
     };
 
     loadThreadInfo();
-
   }, [threadId, user]);
 
-
-
   /* ====================================================================
-   * 2. Subscribe to message list (real-time)
+   * 2. Subscribe to message list
    * ==================================================================== */
   useEffect(() => {
     if (!user || !threadId) return;
 
-    // Reset unread count when entering the chat
     clearUnread(threadId, user.uid);
 
     const unsub = subscribeToMessages(threadId, (msgs) => {
-
       const formatted = msgs.map((m: any) => ({
         id: m.id,
         text: m.text,
-        sender: m.senderId === user.uid ? 'me' : 'other',
+        sender: m.senderId === user.uid ? "me" : "other",
+        reactions: m.reactions || {},
+        raw: m,
         time: m.createdAt?.toDate
             ? m.createdAt.toDate().toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
+              hour: "2-digit",
+              minute: "2-digit",
             })
-            : '',
+            : "",
       }));
 
       setMessages(formatted);
     });
 
     return () => unsub();
-
   }, [threadId, user]);
-
-
 
   /* ====================================================================
    * Pull-to-refresh (visual only)
@@ -157,228 +150,267 @@ export default function ChatScreen() {
     indicatorOffset: 4,
   });
 
-
-
-  const { isBlocked, blockedByOther, loading: blockLoading } = useBlockingStatus(
-    user?.uid,
-    partnerId
-  );
+  const { isBlocked, blockedByOther, loading: blockLoading } =
+      useBlockingStatus(user?.uid, partnerId);
 
   const messagingDisabled = isBlocked || blockedByOther;
 
   /* ====================================================================
-   * Sending a message
+   * Reaction Handler
    * ==================================================================== */
-  const sendMessage = async () => {
+  const handleReaction = async (
+      msgId: string,
+      current: "like" | "love" | "laugh" | null,
+      chosen: "like" | "love" | "laugh"
+  ) => {
+    if (!user || !threadId) return;
 
+    setActiveReactionTarget(null);
+
+    if (current === chosen) {
+      await removeReaction(threadId, msgId, user.uid);
+      return;
+    }
+
+    await toggleReaction(threadId, msgId, user.uid, chosen);
+  };
+
+  /* ====================================================================
+   * Send a message
+   * ==================================================================== */
+  const sendMessageToFirestore = async () => {
     if (!message.trim() || !threadId || !user || !partnerId) return;
 
     if (messagingDisabled) {
       Alert.alert(
-        'Messaging blocked',
-        blockedByOther
-          ? 'This user has blocked you from messaging them.'
-          : 'Unblock this user to resume messaging.'
+          "Messaging blocked",
+          blockedByOther
+              ? "This user has blocked you from messaging them."
+              : "Unblock this user to resume messaging."
       );
       return;
     }
 
-    // IMPORTANT: lazy-loaded to avoid circular import
-    const { sendMessage: sendMessageToFirestore } = await import('../api');
+    const { sendMessage: sendMessageAPI } = await import("../api");
 
     try {
-      await sendMessageToFirestore(threadId, user.uid, message.trim(), partnerId);
-      setMessage('');
+      await sendMessageAPI(threadId, user.uid, message.trim(), partnerId);
+      setMessage("");
     } catch (err: any) {
-      console.error('Failed to send message', err);
-      Alert.alert('Unable to send message', err?.message ?? 'Messaging is blocked.');
+      Alert.alert("Unable to send message", err?.message);
     }
   };
 
+  /* ====================================================================
+   * FIXED — Navigation to Block User Screen
+   * ==================================================================== */
   const openBlockSettings = () => {
     if (!partnerId) return;
-    router.push({ pathname: '/block-user', params: { userId: partnerId, name: partnerName } });
+
+    // ⭐ FIX: string navigation avoids TS route errors
+    router.push(`/block-user?userId=${partnerId}&name=${partnerName}` as any);
   };
 
-
-
   /* ====================================================================
-   * Rendering a chat bubble
+   * Render a chat bubble + reactions
    * ==================================================================== */
-  const renderMessage = ({ item }: any) => (
-      <View
-          style={[
-            styles.messageContainer,
-            item.sender === 'me'
-                ? styles.myMessageContainer
-                : styles.otherMessageContainer,
-          ]}
-      >
+  const renderMessage = ({ item }: any) => {
+    const isMine = item.sender === "me";
+
+    const rawReaction = item.reactions?.[user?.uid ?? ""] ?? null;
+    const typedUserReaction =
+        rawReaction === "like" || rawReaction === "love" || rawReaction === "laugh"
+            ? rawReaction
+            : null;
+
+    return (
         <View
             style={[
-              styles.messageBubble,
-              item.sender === 'me' ? styles.myMessage : styles.otherMessage,
+              styles.messageContainer,
+              isMine ? styles.myMessageContainer : styles.otherMessageContainer,
             ]}
         >
-          <Text
-              style={[
-                styles.messageText,
-                item.sender === 'me' && styles.myMessageText,
-              ]}
+          {/* Long press to open reactions */}
+          <TouchableOpacity
+              activeOpacity={0.9}
+              onLongPress={() => setActiveReactionTarget(item.id)}
           >
-            {item.text}
-          </Text>
+            <View
+                style={[
+                  styles.messageBubble,
+                  isMine ? styles.myMessage : styles.otherMessage,
+                ]}
+            >
+              <Text
+                  style={[styles.messageText, isMine && styles.myMessageText]}
+              >
+                {item.text}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <Text style={styles.timeText}>{item.time}</Text>
+
+          {/* Reactions row */}
+          {Object.keys(item.reactions).length > 0 && (
+              <View style={styles.reactionRow}>
+                {Object.entries(item.reactions).map(([uid, r]) => {
+                  if (!r) return null;
+                  const emoji = r === "like" ? "👍" : r === "love" ? "❤️" : "😂";
+                  return (
+                      <View key={uid} style={styles.reactionBubble}>
+                        <Text style={styles.reactionText}>{emoji}</Text>
+                      </View>
+                  );
+                })}
+              </View>
+          )}
+
+          {/* Reaction picker */}
+          {activeReactionTarget === item.id && (
+              <View style={styles.reactionPicker}>
+                <TouchableOpacity
+                    onPress={() =>
+                        handleReaction(item.id, typedUserReaction, "like")
+                    }
+                >
+                  <Text style={styles.reactionPickerEmoji}>👍</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    onPress={() =>
+                        handleReaction(item.id, typedUserReaction, "love")
+                    }
+                >
+                  <Text style={styles.reactionPickerEmoji}>❤️</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    onPress={() =>
+                        handleReaction(item.id, typedUserReaction, "laugh")
+                    }
+                >
+                  <Text style={styles.reactionPickerEmoji}>😂</Text>
+                </TouchableOpacity>
+              </View>
+          )}
         </View>
-
-        <Text style={styles.timeText}>{item.time}</Text>
-      </View>
-  );
-
-
+    );
+  };
 
   /* ====================================================================
    * SCREEN RENDER
    * ==================================================================== */
   return (
       <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.container}
           keyboardVerticalOffset={90}
       >
-
-
-        {/* ===========================================================
-       * HEADER (partnerName + itemName)
-       * =========================================================== */}
+        {/* HEADER */}
         <View style={styles.header}>
-
           <View style={styles.headerLeft}>
-
-            {/* Avatar */}
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {partnerInitials}
-              </Text>
+              <Text style={styles.avatarText}>{partnerInitials}</Text>
             </View>
-
-            {/* Names */}
             <View>
               <Text style={styles.partnerName}>{partnerName}</Text>
               <Text style={styles.itemName}>📦 {itemName}</Text>
             </View>
-
           </View>
 
           <TouchableOpacity onPress={openBlockSettings}>
             <Icon name="more-vertical" size={24} color="#374151" />
           </TouchableOpacity>
-
         </View>
 
         {(messagingDisabled || blockLoading) && (
-          <View style={styles.blockNotice}>
-            <Icon name="slash" size={16} color={COLORS.primary} />
-            <Text style={styles.blockNoticeText}>
-              {blockLoading
-                ? 'Checking block status...'
-                : blockedByOther
-                  ? 'You cannot send messages to this user.'
-                  : 'You blocked this user. Unblock in settings to resume chatting.'}
-            </Text>
-          </View>
+            <View style={styles.blockNotice}>
+              <Icon name="slash" size={16} color={COLORS.primary} />
+              <Text style={styles.blockNoticeText}>
+                {blockLoading
+                    ? "Checking block status..."
+                    : blockedByOther
+                        ? "You cannot send messages to this user."
+                        : "You blocked this user. Unblock in settings to resume chatting."}
+              </Text>
+            </View>
         )}
 
-
-
-        {/* ===========================================================
-       * MESSAGE LIST
-       * =========================================================== */}
+        {/* MESSAGE LIST */}
         <View style={styles.messagesWrapper}>
-
           {messageRefresh.indicator}
 
           {messagingDisabled ? (
-            <View style={styles.blockedMessages}>
-              <Icon name="slash" size={24} color={COLORS.primary} />
-              <Text style={styles.blockNoticeText}>
-                Messages are hidden because {blockedByOther ? 'this user blocked you' : 'you blocked this user'}.
-              </Text>
-            </View>
+              <View style={styles.blockedMessages}>
+                <Icon name="slash" size={24} color={COLORS.primary} />
+                <Text style={styles.blockNoticeText}>
+                  Messages are hidden because{" "}
+                  {blockedByOther ? "this user blocked you" : "you blocked this user"}.
+                </Text>
+              </View>
           ) : (
-            <Animated.FlatList
-                data={messages}
-                renderItem={renderMessage}
-                keyExtractor={(item) => item.id.toString()}
-                style={messageRefresh.listStyle}
-                contentContainerStyle={styles.messagesContainer}
-                onScroll={messageRefresh.onScroll}
-                onScrollEndDrag={messageRefresh.onRelease}
-                onMomentumScrollEnd={messageRefresh.onRelease}
-                scrollEventThrottle={16}
-                showsVerticalScrollIndicator={false}
-            />
+              <Animated.FlatList
+                  data={messages}
+                  renderItem={renderMessage}
+                  keyExtractor={(item) => item.id.toString()}
+                  style={messageRefresh.listStyle}
+                  contentContainerStyle={styles.messagesContainer}
+                  onScroll={messageRefresh.onScroll}
+                  onScrollEndDrag={messageRefresh.onRelease}
+                  onMomentumScrollEnd={messageRefresh.onRelease}
+                  scrollEventThrottle={16}
+                  showsVerticalScrollIndicator={false}
+              />
           )}
-
         </View>
 
-
-
-        {/* ===========================================================
-       * INPUT BAR
-       * =========================================================== */}
+        {/* INPUT BAR */}
         <View style={styles.inputContainer}>
+          <TextInput
+              style={[styles.input, messagingDisabled && styles.inputDisabled]}
+              placeholder="Type a message..."
+              value={message}
+              onChangeText={setMessage}
+              multiline
+              editable={!messagingDisabled}
+          />
 
-        <TextInput
-                style={[styles.input, messagingDisabled && styles.inputDisabled]}
-                placeholder="Type a message..."
-                value={message}
-                onChangeText={setMessage}
-                multiline
-                editable={!messagingDisabled}
-            />
-
-            <TouchableOpacity
-                style={[styles.sendButton, messagingDisabled && styles.sendButtonDisabled]}
-                onPress={sendMessage}
-                disabled={messagingDisabled}
-            >
-              <Icon name="send" size={20} color={COLORS.white} />
-            </TouchableOpacity>
-
+          <TouchableOpacity
+              style={[styles.sendButton, messagingDisabled && styles.sendButtonDisabled]}
+              onPress={sendMessageToFirestore}
+              disabled={messagingDisabled}
+          >
+            <Icon name="send" size={20} color={COLORS.white} />
+          </TouchableOpacity>
         </View>
-
-
       </KeyboardAvoidingView>
   );
 }
-
-
-
 
 /* ======================================================================
  *  STYLES
  * ====================================================================== */
 const styles = StyleSheet.create({
-
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
 
-  /* -------------------- HEADER -------------------- */
+  /* HEADER */
   header: {
     backgroundColor: COLORS.white,
     padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
 
   headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
   },
 
@@ -387,27 +419,27 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   avatarText: {
     color: COLORS.white,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 
   partnerName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
   },
 
   itemName: {
     fontSize: 12,
-    color: '#6B7280',
+    color: "#6B7280",
   },
 
-  /* -------------------- MESSAGE LIST -------------------- */
+  /* MESSAGE LIST */
   messagesWrapper: {
     flex: 1,
     backgroundColor: COLORS.background,
@@ -420,24 +452,23 @@ const styles = StyleSheet.create({
   },
 
   blockedMessages: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: 8,
     padding: 24,
   },
 
-
-  /* -------------------- CHAT BUBBLES -------------------- */
+  /* CHAT BUBBLES */
   messageContainer: {
     marginBottom: 16,
-    maxWidth: '75%',
+    maxWidth: "75%",
   },
 
   myMessageContainer: {
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
   },
 
   otherMessageContainer: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
 
   messageBubble: {
@@ -457,7 +488,7 @@ const styles = StyleSheet.create({
 
   messageText: {
     fontSize: 14,
-    color: '#374151',
+    color: "#374151",
   },
 
   myMessageText: {
@@ -466,24 +497,61 @@ const styles = StyleSheet.create({
 
   timeText: {
     fontSize: 11,
-    color: '#9CA3AF',
+    color: "#9CA3AF",
     marginTop: 4,
   },
 
-  /* -------------------- INPUT BAR -------------------- */
+  /* REACTIONS */
+  reactionRow: {
+    flexDirection: "row",
+    gap: 4,
+    marginTop: 6,
+  },
+
+  reactionBubble: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
+  reactionText: {
+    fontSize: 14,
+  },
+
+  reactionPicker: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignSelf: "flex-start",
+  },
+
+  reactionPickerEmoji: {
+    fontSize: 22,
+  },
+
+  /* INPUT BAR */
   inputContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: 16,
     backgroundColor: COLORS.white,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 12,
   },
 
   input: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: "#F3F4F6",
     borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -500,28 +568,27 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   sendButtonDisabled: {
-    backgroundColor: '#9CA3AF',
+    backgroundColor: "#9CA3AF",
   },
 
   blockNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: "#EFF6FF",
     borderBottomWidth: 1,
-    borderColor: '#DBEAFE',
+    borderColor: "#DBEAFE",
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
 
   blockNoticeText: {
-    color: '#1F2937',
+    color: "#1F2937",
     flex: 1,
   },
-  
 });
