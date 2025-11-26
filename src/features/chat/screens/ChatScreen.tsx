@@ -35,6 +35,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Image,       // <-- ADD THIS
 } from "react-native";
 
 import { Feather as Icon } from "@expo/vector-icons";
@@ -53,6 +54,9 @@ import {
 } from "../api";
 
 import { db, doc, getDoc } from "../../../lib/firebase";
+
+import * as ImagePicker from "expo-image-picker";
+import { sendPhoto } from "../api";
 
 /* ======================================================================
  *  MAIN CHAT SCREEN
@@ -202,6 +206,30 @@ export default function ChatScreen() {
   };
 
   /* ====================================================================
+  * Send a PHOTO message
+  * ==================================================================== */
+  const pickAndSendPhoto = async () => {
+    if (messagingDisabled) return;
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      quality: 0.7,
+      allowsEditing: false,
+      base64: false,
+    });
+
+    if (result.canceled) return;
+
+    const uri = result.assets?.[0]?.uri;
+    if (!uri) return;
+
+    try {
+      await sendPhoto(threadId, user!.uid, uri, partnerId);
+    } catch (err: any) {
+      Alert.alert("Failed to send photo", err?.message);
+    }
+  };
+
+  /* ====================================================================
    * FIXED — Navigation to Block User Screen
    * ==================================================================== */
   const openBlockSettings = () => {
@@ -241,11 +269,16 @@ export default function ChatScreen() {
                   isMine ? styles.myMessage : styles.otherMessage,
                 ]}
             >
-              <Text
-                  style={[styles.messageText, isMine && styles.myMessageText]}
-              >
-                {item.text}
-              </Text>
+              {item.photoUrl ? (
+                  <Image source={{ uri: item.photoUrl }} style={styles.photo} />
+              ) : (
+                  <Text
+                      style={[styles.messageText, isMine && styles.myMessageText]}
+                  >
+                    {item.text}
+                  </Text>
+              )}
+
             </View>
           </TouchableOpacity>
 
@@ -367,6 +400,19 @@ export default function ChatScreen() {
 
         {/* INPUT BAR */}
         <View style={styles.inputContainer}>
+
+          {/* NEW PHOTO BUTTON */}
+          <TouchableOpacity
+              onPress={pickAndSendPhoto}
+              disabled={messagingDisabled}
+          >
+            <Icon
+                name="image"
+                size={28}
+                color={messagingDisabled ? "#9CA3AF" : COLORS.primary}
+            />
+          </TouchableOpacity>
+
           <TextInput
               style={[styles.input, messagingDisabled && styles.inputDisabled]}
               placeholder="Type a message..."
@@ -499,6 +545,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#9CA3AF",
     marginTop: 4,
+  },
+
+  /* PHOTO MESSAGE */
+  photo: {
+    width: 220,
+    height: 220,
+    borderRadius: 12,
+    backgroundColor: "#D1D5DB",
   },
 
   /* REACTIONS */
