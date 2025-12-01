@@ -154,7 +154,9 @@ export default function PostItemScreen() {
     );
   })();
 
-  const shouldShowActions = isEditing ? hasEditingChanges : isFormValid;
+  const canSubmit = isEditing ? hasEditingChanges : isFormValid;
+  const canPreview = isFormValid;
+  const shouldShowActions = canPreview || canSubmit;
 
   useEffect(() => {
     Animated.timing(actionsAnim, {
@@ -366,10 +368,14 @@ export default function PostItemScreen() {
 
   const currentUserPhotoURL = auth.currentUser?.photoURL?.trim() || null;
 
-  const viewListingAfterHome = (itemId: string) => {
+  const viewListingAfterHome = (itemId: string, fromComposer = false) => {
     navigateHome();
     setTimeout(() => {
-      router.push({ pathname: '/item-detail', params: { itemId } });
+      const params: Record<string, string> = { itemId };
+      if (fromComposer) {
+        params.fromComposer = '1';
+      }
+      router.push({ pathname: '/item-detail', params });
     }, 60);
   };
 
@@ -417,13 +423,7 @@ export default function PostItemScreen() {
           coverImageUrl: uploadedUrls[0] ?? null,
         });
 
-        Alert.alert('Listing updated', 'Your changes are live.', [
-          { text: 'Back to Marketplace', style: 'cancel', onPress: navigateHome },
-          {
-            text: 'View Listing',
-            onPress: () => viewListingAfterHome(updated.id),
-          },
-        ]);
+        viewListingAfterHome(updated.id, true);
       } else {
         // publishListing handles Cloudinary uploads + Firestore write so this screen just builds a clean payload.
         const listing = await publishListing({
@@ -450,17 +450,7 @@ export default function PostItemScreen() {
         });
 
         resetForm();
-        Alert.alert('Posted!', 'Your item is now live on BadgerSwap marketplace.', [
-          {
-            text: 'Back to Marketplace',
-            style: 'cancel',
-            onPress: navigateHome,
-          },
-          {
-            text: 'View Listing',
-            onPress: () => viewListingAfterHome(listing.id),
-          },
-        ]);
+        viewListingAfterHome(listing.id, true);
       }
     } catch (err: any) {
       console.error('Error posting item:', err);
@@ -472,6 +462,7 @@ export default function PostItemScreen() {
 
   const handlePostItem = () => {
     if (!ensureFormReady()) return;
+    if (!canSubmit) return;
     Alert.alert(
       isEditing ? 'Save Changes' : 'Publish Listing',
       isEditing
@@ -757,60 +748,64 @@ export default function PostItemScreen() {
           },
         ]}
       >
-        <TouchableOpacity
-          style={styles.previewButton}
-          disabled={posting}
-          onPress={() => {
-            if (!ensureFormReady()) return;
-            const primaryCategory = (categories[0] ?? 'other') as Category;
-            const categoryLabel = categories.length
-              ? CATEGORIES.filter((cat) => categories.includes(cat.id))
-                  .map((cat) => cat.name)
-                  .join(', ')
-              : 'General';
-            const payload = {
-              title: title.trim(),
-              price,
-              condition,
-              description: description.trim(),
-              location: effectiveLocation,
-              locationCoordinates:
-                locationSelection && typeof locationSelection.lat === 'number'
-                  ? { lat: locationSelection.lat, lng: locationSelection.lng as number }
-                  : undefined,
-              primaryCategoryId: primaryCategory,
-              categoryLabel,
-              listingId: editingListingId,
-              images: images.map<ListingImageSource>((img) => ({
-                localUri: img.localUri,
-                remoteUrl: img.remoteUrl ?? null,
-              })),
-            };
-            router.push({
-              pathname: '/item-preview',
-              params: {
-                payload: JSON.stringify(payload),
-              },
-            });
-          }}
-        >
-          <Text style={styles.previewButtonText}>Preview</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionPostButton}
-          onPress={handlePostItem}
-          disabled={posting}
-        >
-          <Text style={styles.actionPostButtonText}>
-          {posting
-              ? isEditing
-                ? 'Saving...'
-                : 'Posting...'
-              : isEditing
-                ? 'Save Changes'
-                : 'Post Item'}
-          </Text>
-        </TouchableOpacity>
+        {canPreview && (
+          <TouchableOpacity
+            style={styles.previewButton}
+            disabled={posting}
+            onPress={() => {
+              if (!ensureFormReady()) return;
+              const primaryCategory = (categories[0] ?? 'other') as Category;
+              const categoryLabel = categories.length
+                ? CATEGORIES.filter((cat) => categories.includes(cat.id))
+                    .map((cat) => cat.name)
+                    .join(', ')
+                : 'General';
+              const payload = {
+                title: title.trim(),
+                price,
+                condition,
+                description: description.trim(),
+                location: effectiveLocation,
+                locationCoordinates:
+                  locationSelection && typeof locationSelection.lat === 'number'
+                    ? { lat: locationSelection.lat, lng: locationSelection.lng as number }
+                    : undefined,
+                primaryCategoryId: primaryCategory,
+                categoryLabel,
+                listingId: editingListingId,
+                images: images.map<ListingImageSource>((img) => ({
+                  localUri: img.localUri,
+                  remoteUrl: img.remoteUrl ?? null,
+                })),
+              };
+              router.push({
+                pathname: '/item-preview',
+                params: {
+                  payload: JSON.stringify(payload),
+                },
+              });
+            }}
+          >
+            <Text style={styles.previewButtonText}>Preview</Text>
+          </TouchableOpacity>
+        )}
+        {canSubmit && (
+          <TouchableOpacity
+            style={styles.actionPostButton}
+            onPress={handlePostItem}
+            disabled={posting}
+          >
+            <Text style={styles.actionPostButtonText}>
+            {posting
+                ? isEditing
+                  ? 'Saving...'
+                  : 'Posting...'
+                : isEditing
+                  ? 'Save Changes'
+                  : 'Post Item'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </Animated.View>
     </View>
   );

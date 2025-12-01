@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import { router, useLocalSearchParams, useNavigation } from 'expo-router';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -30,8 +30,10 @@ import { mapListingFromDoc } from '../useListings';
 const { width } = Dimensions.get('window');
 
 export default function ItemDetailScreen() {
-  const params = useLocalSearchParams<{ itemId?: string }>();
+  const params = useLocalSearchParams<{ itemId?: string; fromComposer?: string }>();
   const itemId = typeof params.itemId === 'string' ? params.itemId : '';
+  const navigatedFromComposer = params.fromComposer === '1';
+  const navigation = useNavigation<any>();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteBusy, setFavoriteBusy] = useState(false);
@@ -50,6 +52,21 @@ export default function ItemDetailScreen() {
     user?.uid,
     item?.sellerId
   );
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerLeft: navigatedFromComposer
+        ? () => (
+            <TouchableOpacity
+              onPress={() => router.replace('/marketplace')}
+              style={{ paddingHorizontal: 8 }}
+            >
+              <Feather name="arrow-left" size={22} color={COLORS.white} />
+            </TouchableOpacity>
+          )
+        : undefined,
+    });
+  }, [navigation, navigatedFromComposer]);
 
   // Live Firestore subscription keeps the detail view fresh during edits
   useEffect(() => {
@@ -194,17 +211,23 @@ export default function ItemDetailScreen() {
   const handleEditListing = () => {
     if (!item || !isOwnListing) return;
 
-    try {
-      const payload = JSON.stringify({
-        id: item.id,
-        title: item.title,
-        price: item.price,
-        category: item.category,
-        condition: item.condition,
-        description: item.description ?? '',
-        location: item.location,
-        imageUrls: item.imageUrls,
-      });
+      try {
+        const payload = JSON.stringify({
+          id: item.id,
+          title: item.title,
+          price: item.price,
+          category: item.category,
+          condition: item.condition,
+          description: item.description ?? '',
+          location: item.location,
+          locationCoordinates: item.locationCoordinates
+            ? {
+                lat: item.locationCoordinates.lat,
+                lng: item.locationCoordinates.lng,
+              }
+            : null,
+          imageUrls: item.imageUrls,
+        });
 
       router.push({ pathname: '/post-item', params: { editItem: payload } });
     } catch (err) {

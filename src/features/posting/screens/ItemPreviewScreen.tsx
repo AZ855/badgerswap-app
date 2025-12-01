@@ -100,10 +100,14 @@ export default function ItemPreviewScreen() {
 
   const currentUserPhotoURL = auth.currentUser?.photoURL?.trim() || null;
 
-  const viewListingAfterHome = (itemId: string) => {
+  const viewListingAfterHome = (itemId: string, fromComposer = false) => {
     navigateHome();
     setTimeout(() => {
-      router.push({ pathname: '/item-detail', params: { itemId } });
+      const params: Record<string, string> = { itemId };
+      if (fromComposer) {
+        params.fromComposer = '1';
+      }
+      router.push({ pathname: '/item-detail', params });
     }, 60);
   };
 
@@ -149,13 +153,7 @@ export default function ItemPreviewScreen() {
           coverImageUrl: uploadedUrls[0] ?? null,
         });
 
-        Alert.alert('Listing updated', 'Your changes are live.', [
-          { text: 'Back to Marketplace', style: 'cancel', onPress: navigateHome },
-          {
-            text: 'View Listing',
-            onPress: () => viewListingAfterHome(listing.id),
-          },
-        ]);
+        viewListingAfterHome(listing.id, true);
       } else {
         // Reuse the same publishListing pipeline here so preview and edit share one backend integration path.
         const listing = await publishListing({
@@ -175,17 +173,7 @@ export default function ItemPreviewScreen() {
           userId: auth.currentUser.uid,
         });
 
-        Alert.alert('Posted!', 'Your item is now live on BadgerSwap marketplace.', [
-          {
-            text: 'Back to Marketplace',
-            style: 'cancel',
-            onPress: navigateHome,
-          },
-          {
-            text: 'View Listing',
-            onPress: () => viewListingAfterHome(listing.id),
-          },
-        ]);
+        viewListingAfterHome(listing.id, true);
       }
     } catch (err: any) {
       console.error('Error posting item from preview:', err);

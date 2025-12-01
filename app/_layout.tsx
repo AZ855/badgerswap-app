@@ -57,6 +57,12 @@ function LayoutContent() {
     pathname?.startsWith('/post-item') ||
     pathname?.startsWith('/chat-list') ||
     pathname?.startsWith('/profile');
+  const noBackStackOptions = {
+    headerLeft: () => null,
+    headerBackVisible: false,
+    gestureEnabled: false,
+    animation: 'none' as const,
+  };
 
   return (
     <>
@@ -79,15 +85,22 @@ function LayoutContent() {
           name="marketplace"
           options={{
             title: 'BadgerSwap',
-            headerLeft: () => null,
-            gestureEnabled: false,
-            animation: 'none',
+            ...noBackStackOptions,
           }}
         />
         <Stack.Screen name="item-detail" options={{ title: 'Item Details' }} />
-        <Stack.Screen name="item-preview" options={{ title: 'Item preview' }} />
-        <Stack.Screen name="post-item" options={{ title: 'Post Item', gestureEnabled: false, animation: 'none' }} />
-        <Stack.Screen name="chat-list" options={{ title: 'Messages', gestureEnabled: false, animation: 'none' }} />
+        <Stack.Screen
+          name="item-preview"
+          options={{ title: 'Item preview', ...noBackStackOptions }}
+        />
+        <Stack.Screen
+          name="post-item"
+          options={{ title: 'Post Item', ...noBackStackOptions }}
+        />
+        <Stack.Screen
+          name="chat-list"
+          options={{ title: 'Messages', ...noBackStackOptions }}
+        />
         <Stack.Screen name="chat" options={{ headerShown: false }} />
         <Stack.Screen
           name="conversation"
@@ -106,8 +119,7 @@ function LayoutContent() {
           name="profile"
           options={{
             title: 'Profile',
-            gestureEnabled: false,
-            animation: 'none',
+            ...noBackStackOptions,
             headerRight: () => (
               <View style={{ flexDirection: 'row', gap: 16 }}>
                 <Link href="/settings" asChild>
