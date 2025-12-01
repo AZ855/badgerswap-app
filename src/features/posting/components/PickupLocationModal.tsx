@@ -63,7 +63,11 @@ export function PickupLocationModal({ visible, onClose, onSelect, apiKey }: Pick
 
         {apiKey ? (
           <GooglePlacesAutocomplete
-            placeholder="Search for an address or building"
+            placeholder="Search pickup spot..."
+            textInputProps={{
+              placeholderTextColor: '#9CA3AF',
+              style: { color: '#1F2937' },
+            }}
             fetchDetails
             debounce={240}
             onPress={handleSelection}
@@ -86,7 +90,7 @@ export function PickupLocationModal({ visible, onClose, onSelect, apiKey }: Pick
             }}
             renderLeftButton={() => (
               <View style={styles.searchIconWrap}>
-                <Feather name="map-pin" size={18} color="#6B7280" />
+                <Feather name="map-pin" size={18} color="#9CA3AF" />
               </View>
             )}
           />
@@ -120,14 +124,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   title: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  searchContainer: { paddingHorizontal: 12, paddingBottom: 8 },
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
   searchInput: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: COLORS.white,
     borderRadius: 12,
     paddingVertical: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: 44,
     fontSize: 15,
-    color: '#111827',
+    color: '#1F2937',
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   listView: { paddingHorizontal: 12 },
   listRow: {
@@ -139,7 +148,11 @@ const styles = StyleSheet.create({
   },
   description: { color: '#111827' },
   separator: { height: 1, backgroundColor: '#E5E7EB' },
-  searchIconWrap: { position: 'absolute', left: 20, top: 13 },
+  searchIconWrap: {
+    position: 'absolute',
+    left: 28,
+    top: 22,
+  },
   emptyState: {
     flex: 1,
     alignItems: 'center',

@@ -85,6 +85,7 @@ export default function MarketplaceScreen() {
           <TextInput
             style={styles.input}
             placeholder="Search items..."
+            placeholderTextColor="#9CA3AF"
             value={searchText}
             onChangeText={onChangeQuery}
             autoCapitalize="none"
@@ -187,13 +188,20 @@ const styles = StyleSheet.create({
   search: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: COLORS.white,
     borderRadius: 12,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 12,
     marginHorizontal: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  input: { flex: 1, marginLeft: 10, fontSize: 16, color: '#111827' },
+  input: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 16,
+    color: '#374151',
+  },
   resultCount: { color: '#6B7280', fontSize: 12 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   metaRow: {

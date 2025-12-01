@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  type TextInputProps,
 } from 'react-native';
 
 export type GooglePlaceData = {
@@ -50,6 +51,7 @@ type GooglePlacesAutocompleteProps = {
   enablePoweredByContainer?: boolean;
   styles?: StylesConfig;
   renderLeftButton?: () => React.ReactNode;
+  textInputProps?: TextInputProps;
 };
 
 async function fetchAutocomplete(
@@ -111,11 +113,13 @@ export function GooglePlacesAutocomplete({
   enablePoweredByContainer = true,
   styles: styleOverrides,
   renderLeftButton,
+  textInputProps,
 }: GooglePlacesAutocompleteProps) {
   const [text, setText] = useState('');
   const [results, setResults] = useState<GooglePlaceData[]>([]);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { style: textInputStyleOverride, ...restTextInputProps } = textInputProps ?? {};
 
   const mergedStyles = useMemo(() => ({ ...defaultStyles, ...styleOverrides }), [styleOverrides]);
 
@@ -173,9 +177,14 @@ export function GooglePlacesAutocomplete({
           placeholder={placeholder}
           value={text}
           onChangeText={setText}
-          style={[defaultStyles.textInput, mergedStyles?.textInput]}
+          style={[
+            defaultStyles.textInput,
+            mergedStyles?.textInput,
+            textInputStyleOverride,
+          ]}
           autoCorrect={false}
           autoCapitalize="none"
+          {...restTextInputProps}
         />
         {loading && (
           <View style={defaultStyles.spinner}>
