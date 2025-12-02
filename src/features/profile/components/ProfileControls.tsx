@@ -2,9 +2,22 @@ import { Feather } from '@expo/vector-icons';
 import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS } from '../../../theme/colors';
+import type { Category } from '../../marketplace/types';
 
 type Status = 'all' | 'available' | 'sold';
 type ViewMode = 'list' | 'grid';
+type CategoryFilter = Category | 'all';
+
+const FAVORITE_CATEGORY_FILTERS: Array<{ value: CategoryFilter; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'books', label: 'Books' },
+  { value: 'electronics', label: 'Electronics' },
+  { value: 'furniture', label: 'Furniture' },
+  { value: 'clothing', label: 'Clothing' },
+  { value: 'sports', label: 'Sports' },
+  { value: 'kitchen', label: 'Kitchen' },
+  { value: 'other', label: 'Other' },
+];
 
 export default function ProfileControls({
   status,
@@ -12,12 +25,18 @@ export default function ProfileControls({
   view,
   onView,
   showStatus = true,
+  showCategories = false,
+  categoryFilter = 'all',
+  onCategoryFilter,
 }: {
   status: Status;
   onStatus: (s: Status) => void;
   view: ViewMode;
   onView: (v: ViewMode) => void;
   showStatus?: boolean;
+  showCategories?: boolean;
+  categoryFilter?: CategoryFilter;
+  onCategoryFilter?: (c: CategoryFilter) => void;
 }) {
   return (
     <View style={styles.wrap}>
@@ -31,6 +50,21 @@ export default function ProfileControls({
             >
               <Text style={[styles.chipText, status === f && styles.chipTextActive]}>
                 {f.charAt(0).toUpperCase() + f.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        {showCategories &&
+          onCategoryFilter &&
+          FAVORITE_CATEGORY_FILTERS.map((filter) => (
+            <TouchableOpacity
+              key={filter.value}
+              style={[styles.chip, categoryFilter === filter.value && styles.chipActive]}
+              onPress={() => onCategoryFilter(filter.value)}
+            >
+              <Text
+                style={[styles.chipText, categoryFilter === filter.value && styles.chipTextActive]}
+              >
+                {filter.label}
               </Text>
             </TouchableOpacity>
           ))}
@@ -63,4 +97,3 @@ const styles = StyleSheet.create({
   toggleBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 6 },
   toggleBtnActive: { backgroundColor: COLORS.white },
 });
-

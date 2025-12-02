@@ -70,6 +70,7 @@ export default function ProfileScreen() {
 
   const [tab, setTab] = useState<'listings' | 'favorites'>('listings');
   const [status, setStatus] = useState<'all' | 'available' | 'sold'>('all');
+  const [favoriteCategory, setFavoriteCategory] = useState<Category | 'all'>('all');
   const [view, setView] = useState<'list' | 'grid'>('list');
 
   const COLLAPSE_Y = 80;
@@ -92,6 +93,10 @@ export default function ProfileScreen() {
 
   const listings: Item[] = useMemo(() => userListings, [userListings]);
   const favorites: Item[] = useMemo(() => favoriteItems, [favoriteItems]);
+  const filteredFavorites: Item[] = useMemo(() => {
+    if (favoriteCategory === 'all') return favorites;
+    return favorites.filter((item) => item.category === favoriteCategory);
+  }, [favorites, favoriteCategory]);
   const filteredListings: Item[] = useMemo(() => {
     if (status === 'sold') {
       return listings.filter((listing) => listing.status === 'sold');
@@ -101,7 +106,7 @@ export default function ProfileScreen() {
     }
     return listings;
   }, [listings, status]);
-  const listData = tab === 'favorites' ? favorites : filteredListings;
+  const listData = tab === 'favorites' ? filteredFavorites : filteredListings;
   const isFavoritesTab = tab === 'favorites';
   const hasEnoughItemsForCollapse = listData.length >= MIN_COLLAPSE_ITEMS;
   const verticalSlack = Math.max(0, contentHeight - listHeight);
@@ -141,6 +146,9 @@ export default function ProfileScreen() {
       view={view}
       onView={setView}
       showStatus={!isFavoritesTab}
+      showCategories={isFavoritesTab}
+      categoryFilter={favoriteCategory}
+      onCategoryFilter={setFavoriteCategory}
     />
   );
 
