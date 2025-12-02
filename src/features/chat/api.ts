@@ -129,6 +129,16 @@ export async function getOrCreateThread(ctx: ThreadContext) {
                 [sellerId]: 0,
             },
         });
+
+        // Count how many unique buyers have started a thread about this listing
+        try {
+            if (itemId) {
+                const listingRef = doc(db, "listings", itemId);
+                await updateDoc(listingRef, { messagesCount: increment(1) });
+            }
+        } catch (err) {
+            console.error("Failed to bump messagesCount for listing (thread create)", err);
+        }
     } else {
         await updateDoc(ref, {
             itemId,
@@ -197,15 +207,6 @@ export async function sendMessage(
         timestamp: serverTimestamp(),
         [`unread.${otherUser}`]: (data.unread?.[otherUser] || 0) + 1,
     });
-
-    try {
-        if (data.itemId) {
-            const listingRef = doc(db, "listings", data.itemId);
-            await updateDoc(listingRef, { messagesCount: increment(1) });
-        }
-    } catch (err) {
-        console.error("Failed to bump messagesCount for listing", err);
-    }
 }
 
 // =====================================================================
@@ -260,15 +261,6 @@ export async function sendPhoto(
         timestamp: serverTimestamp(),
         [`unread.${otherUser}`]: (data.unread?.[otherUser] || 0) + 1,
     });
-
-    try {
-        if (data.itemId) {
-            const listingRef = doc(db, "listings", data.itemId);
-            await updateDoc(listingRef, { messagesCount: increment(1) });
-        }
-    } catch (err) {
-        console.error("Failed to bump messagesCount for listing (photo)", err);
-    }
 }
 
 // =====================================================================
