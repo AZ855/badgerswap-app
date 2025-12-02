@@ -39,6 +39,7 @@ import {
 } from "react-native";
 
 import { Feather as Icon } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { useBlockingStatus } from "../../../hooks/useBlockingStatus";
@@ -63,6 +64,7 @@ import { sendPhoto } from "../api";
  * ====================================================================== */
 export default function ChatScreen() {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
 
   // threadId is the ONLY navigation param
@@ -73,6 +75,7 @@ export default function ChatScreen() {
   const [partnerInitials, setPartnerInitials] = useState("U");
   const [itemName, setItemName] = useState("Item");
   const [partnerId, setPartnerId] = useState("");
+  const [itemId, setItemId] = useState("");
 
   // Message state
   const [message, setMessage] = useState("");
@@ -108,6 +111,7 @@ export default function ChatScreen() {
       setPartnerInitials((pInitials || "U").toUpperCase());
       setItemName(data.itemName || "Item");
       setPartnerId(otherId || "");
+      setItemId(data.itemId || "");
     };
 
     loadThreadInfo();
@@ -331,6 +335,29 @@ export default function ChatScreen() {
     );
   };
 
+  const handleHeaderPress = () => {
+    if (!itemId && !partnerId) return;
+
+    const actions: any[] = [];
+    if (itemId) {
+      actions.push({
+        text: "View this listing",
+        onPress: () => router.push({ pathname: "/item-detail", params: { itemId } }),
+      });
+    }
+
+    if (partnerId) {
+      actions.push({
+        text: "View seller profile",
+        onPress: () => router.push({ pathname: "/seller-profile/[userId]", params: { userId: partnerId } }),
+      });
+    }
+
+    actions.push({ text: "Cancel", style: "cancel" });
+
+    Alert.alert(partnerName, "What would you like to view?", actions);
+  };
+
   /* ====================================================================
    * SCREEN RENDER
    * ==================================================================== */
@@ -342,7 +369,11 @@ export default function ChatScreen() {
       >
         {/* HEADER */}
         <View style={styles.header}>
-          <View style={styles.headerLeft}>
+          <TouchableOpacity
+            style={styles.headerLeft}
+            activeOpacity={0.7}
+            onPress={handleHeaderPress}
+          >
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>{partnerInitials}</Text>
             </View>
@@ -350,7 +381,7 @@ export default function ChatScreen() {
               <Text style={styles.partnerName}>{partnerName}</Text>
               <Text style={styles.itemName}>📦 {itemName}</Text>
             </View>
-          </View>
+          </TouchableOpacity>
 
           <TouchableOpacity onPress={openBlockSettings}>
             <Icon name="more-vertical" size={24} color="#374151" />
@@ -399,7 +430,7 @@ export default function ChatScreen() {
         </View>
 
         {/* INPUT BAR */}
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, { paddingBottom: 10 + Math.max(insets.bottom, 8) }]}>
 
           {/* NEW PHOTO BUTTON */}
           <TouchableOpacity
@@ -446,12 +477,18 @@ const styles = StyleSheet.create({
   /* HEADER */
   header: {
     backgroundColor: COLORS.white,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.border,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
 
   headerLeft: {
@@ -488,13 +525,13 @@ const styles = StyleSheet.create({
   /* MESSAGE LIST */
   messagesWrapper: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "#F3F4F6",
   },
 
   messagesContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 16,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 12,
   },
 
   blockedMessages: {
@@ -505,8 +542,8 @@ const styles = StyleSheet.create({
 
   /* CHAT BUBBLES */
   messageContainer: {
-    marginBottom: 16,
-    maxWidth: "75%",
+    marginBottom: 10,
+    maxWidth: "78%",
   },
 
   myMessageContainer: {
@@ -518,23 +555,27 @@ const styles = StyleSheet.create({
   },
 
   messageBubble: {
-    padding: 12,
-    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
   },
 
   myMessage: {
     backgroundColor: COLORS.primary,
+    borderBottomRightRadius: 4,
   },
 
   otherMessage: {
     backgroundColor: COLORS.white,
+    borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: "#E5E7EB",
   },
 
   messageText: {
-    fontSize: 14,
-    color: "#374151",
+    fontSize: 15,
+    lineHeight: 20,
+    color: "#111827",
   },
 
   myMessageText: {
@@ -545,6 +586,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#9CA3AF",
     marginTop: 4,
+    alignSelf: "flex-end",
   },
 
   /* PHOTO MESSAGE */
@@ -559,57 +601,57 @@ const styles = StyleSheet.create({
   reactionRow: {
     flexDirection: "row",
     gap: 4,
-    marginTop: 6,
+    marginTop: 4,
   },
 
   reactionBubble: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: "#E5E7EB",
   },
 
   reactionText: {
-    fontSize: 14,
+    fontSize: 12,
   },
 
   reactionPicker: {
     flexDirection: "row",
     gap: 12,
-    marginTop: 8,
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    marginTop: 6,
+    backgroundColor: "#111827",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
     alignSelf: "flex-start",
   },
 
   reactionPickerEmoji: {
-    fontSize: 22,
+    fontSize: 20,
+    color: "#F9FAFB",
   },
 
   /* INPUT BAR */
   inputContainer: {
     flexDirection: "row",
-    padding: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     backgroundColor: COLORS.white,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: COLORS.border,
     alignItems: "center",
-    gap: 12,
+    gap: 10,
   },
 
   input: {
     flex: 1,
     backgroundColor: "#F3F4F6",
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 16,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    fontSize: 15,
     maxHeight: 100,
   },
 
@@ -619,9 +661,9 @@ const styles = StyleSheet.create({
 
   sendButton: {
     backgroundColor: COLORS.primary,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
   },

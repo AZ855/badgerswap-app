@@ -88,8 +88,12 @@ export default function ChatListScreen() {
     if (!user) return;
 
     return subscribeToThreads(user.uid, (threads) => {
+      const visibleThreads = threads.filter((t: any) => {
+        const preview = (t.lastMessage ?? '').trim();
+        return preview.length > 0;
+      });
 
-      const formatted = threads.map((t: any) => ({
+      const formatted = visibleThreads.map((t: any) => ({
         id: t.threadId ?? t.id,     // ensure threadId is used consistently
         partnerName: t.partnerName,
         partnerInitials: t.partnerInitials,
@@ -238,30 +242,41 @@ export default function ChatListScreen() {
               />
             </View>
         ) : (
-            <View style={styles.emptyState}>
-              <Icon name="message-circle" size={64} color="#D1D5DB" />
+            <View style={{ flex: 1 }}>
+              {pullRefresh.indicator}
+              <Animated.ScrollView
+                  style={pullRefresh.listStyle}
+                  contentContainerStyle={styles.emptyState}
+                  onScroll={pullRefresh.onScroll}
+                  onScrollEndDrag={pullRefresh.onRelease}
+                  onMomentumScrollEnd={pullRefresh.onRelease}
+                  scrollEventThrottle={16}
+                  showsVerticalScrollIndicator={false}
+              >
+                <Icon name="message-circle" size={64} color="#D1D5DB" />
 
-              <Text style={styles.emptyStateTitle}>
-                {searchQuery ? 'No conversations found' : 'No messages yet'}
-              </Text>
+                <Text style={styles.emptyStateTitle}>
+                  {searchQuery ? 'No conversations found' : 'No messages yet'}
+                </Text>
 
-              <Text style={styles.emptyStateText}>
-                {searchQuery
-                    ? 'Try searching for something else'
-                    : 'Start browsing the marketplace and message sellers'}
-              </Text>
+                <Text style={styles.emptyStateText}>
+                  {searchQuery
+                      ? 'Try searching for something else'
+                      : 'Start browsing the marketplace and message sellers'}
+                </Text>
 
-              {/* Button to go browse the marketplace */}
-              {!searchQuery && (
-                  <TouchableOpacity
-                      style={styles.browseButton}
-                      onPress={() => router.push('/marketplace')}
-                  >
-                    <Text style={styles.browseButtonText}>
-                      Browse Marketplace
-                    </Text>
-                  </TouchableOpacity>
-              )}
+                {/* Button to go browse the marketplace */}
+                {!searchQuery && (
+                    <TouchableOpacity
+                        style={styles.browseButton}
+                        onPress={() => router.push('/marketplace')}
+                    >
+                      <Text style={styles.browseButtonText}>
+                        Browse Marketplace
+                      </Text>
+                    </TouchableOpacity>
+                )}
+              </Animated.ScrollView>
             </View>
         )}
 
@@ -410,6 +425,7 @@ const styles = StyleSheet.create({
 
   listContent: {
     paddingBottom: 96,
+    flexGrow: 1,
   },
 
   browseButton: {
