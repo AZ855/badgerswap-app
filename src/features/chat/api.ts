@@ -106,7 +106,10 @@ export async function getOrCreateThread(ctx: ThreadContext) {
         buyerInitials,
     } = ctx;
 
-    const threadId = makeThreadId(buyerId, sellerId);
+    // Use a per-item thread id so different listings between
+    // the same buyer and seller get separate conversations.
+    const baseId = makeThreadId(buyerId, sellerId);
+    const threadId = `${baseId}_${itemId}`;
     const ref = doc(db, "chats", threadId);
     const snap = await getDoc(ref);
 
