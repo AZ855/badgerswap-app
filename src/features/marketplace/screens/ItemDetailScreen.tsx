@@ -44,6 +44,7 @@ export default function ItemDetailScreen() {
     verified?: boolean;
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ views: 0, saves: 0, messages: 0 });
   const [error, setError] = useState<string | null>(null);
   const [statusBusy, setStatusBusy] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -85,8 +86,38 @@ export default function ItemDetailScreen() {
           setError('Listing not found.');
         } else {
           type ListingDocData = Parameters<typeof mapListingFromDoc>[1];
-          const data = snap.data() as ListingDocData;
+          const data = snap.data() as ListingDocData & {
+            views?: number;
+            viewsCount?: number;
+            saves?: number;
+            favoritesCount?: number;
+            messages?: number;
+            messagesCount?: number;
+          };
           setItem(mapListingFromDoc(snap.id, data));
+
+          const rawViews = typeof data.viewsCount === 'number'
+            ? data.viewsCount
+            : typeof data.views === 'number'
+            ? data.views
+            : 0;
+          const rawSaves = typeof data.favoritesCount === 'number'
+            ? data.favoritesCount
+            : typeof data.saves === 'number'
+            ? data.saves
+            : 0;
+          const rawMsgs = typeof data.messagesCount === 'number'
+            ? data.messagesCount
+            : typeof data.messages === 'number'
+            ? data.messages
+            : 0;
+
+          setStats({
+            views: rawViews < 0 ? 0 : rawViews,
+            saves: rawSaves < 0 ? 0 : rawSaves,
+            messages: rawMsgs < 0 ? 0 : rawMsgs,
+          });
+
           setError(null);
         }
         setLoading(false);
@@ -342,7 +373,22 @@ export default function ItemDetailScreen() {
               <Text style={styles.title}>{item.title}</Text>
               <Text style={styles.category}>{item.category}</Text>
             </View>
-            {!isOwnListing && (
+            {isOwnListing ? (
+              <View style={styles.ownerStatsPill}>
+                <View style={styles.ownerStatChip}>
+                  <Feather name="eye" size={14} color="#6B7280" />
+                  <Text style={styles.ownerStatText}>{stats.views}</Text>
+                </View>
+                <View style={styles.ownerStatChip}>
+                  <Feather name="heart" size={14} color="#6B7280" />
+                  <Text style={styles.ownerStatText}>{stats.saves}</Text>
+                </View>
+                <View style={styles.ownerStatChip}>
+                  <Feather name="message-circle" size={14} color="#6B7280" />
+                  <Text style={styles.ownerStatText}>{stats.messages}</Text>
+                </View>
+              </View>
+            ) : (
               <TouchableOpacity onPress={toggleFavorite} disabled={favoriteBusy}>
                 <Feather
                   name="heart"
@@ -1080,5 +1126,24 @@ const styles = StyleSheet.create({
     color: '#DC2626',
     fontSize: 16,
     fontWeight: '700',
+  },
+  ownerStatsPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#F3F4F6',
+    gap: 8,
+  },
+  ownerStatChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  ownerStatText: {
+    fontSize: 12,
+    color: '#4B5563',
+    fontWeight: '500',
   },
 });
