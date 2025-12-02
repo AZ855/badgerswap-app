@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, TouchableOpacity, StyleSheet, Animated, AccessibilityInfo } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Animated, AccessibilityInfo, Text } from 'react-native';
 import { usePathname, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../theme/colors';
 import * as Haptics from 'expo-haptics';
+import { useAuth } from '../features/auth/AuthProvider';
+import { subscribeToThreads } from '../features/chat/api';
 
 type TabKey = 'marketplace' | 'post-item' | 'chat-list' | 'profile';
 type TabHref = '/marketplace' | '/post-item' | '/chat-list' | '/profile';
@@ -14,6 +16,8 @@ export default function BottomNav() {
   const insets = useSafeAreaInsets();
   const [reduceMotion, setReduceMotion] = useState(false);
   const lastPressRef = useRef<number>(0);
+  const { user } = useAuth();
+  const [unreadTotal, setUnreadTotal] = useState(0);
 
   // All bottom tabs live here so routing + labels stay in one place
   const tabs = useMemo(
@@ -58,6 +62,22 @@ export default function BottomNav() {
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
   }, []);
+
+  // Aggregate unread count for all threads so we can show a subtle badge on the Messages tab
+  useEffect(() => {
+    if (!user?.uid) {
+      setUnreadTotal(0);
+      return;
+    }
+    const unsub = subscribeToThreads(user.uid, (threads) => {
+      const total = threads.reduce(
+        (sum, t: any) => sum + (t.unread?.[user.uid] || 0),
+        0
+      );
+      setUnreadTotal(total);
+    });
+    return unsub;
+  }, [user?.uid]);
 
   useEffect(() => {
     tabs.forEach(t => {
@@ -114,6 +134,9 @@ export default function BottomNav() {
         const isActive = t.key === activeKey;
         const scale = scales[t.key];
         const tint = isActive ? COLORS.primary : 'rgba(17,24,39,0.64)';
+        const showUnread = t.key === 'chat-list' && unreadTotal > 0;
+        const isDot = unreadTotal === 1;
+        const badgeLabel = unreadTotal > 1 ? `+${unreadTotal}` : '';
         return (
           <View key={t.key} style={styles.navItem}>
             <TouchableOpacity
@@ -124,9 +147,20 @@ export default function BottomNav() {
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               style={styles.hit}
             >
-              <Animated.View style={{ transform: [{ scale }] }}>
-                <Feather name={t.icon as any} size={24} color={tint} />
-              </Animated.View>
+              <View style={styles.iconWrap}>
+                <Animated.View style={{ transform: [{ scale }] }}>
+                  <Feather name={t.icon as any} size={24} color={tint} />
+                </Animated.View>
+                {showUnread && (
+                  isDot ? (
+                    <View style={styles.unreadDot} />
+                  ) : (
+                    <View style={styles.unreadBadge}>
+                      <Text style={styles.unreadBadgeText}>{badgeLabel}</Text>
+                    </View>
+                  )
+                )}
+              </View>
               <Animated.Text
                 style={[
                   styles.navText,
@@ -166,6 +200,11 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   hit: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' },
+  iconWrap: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   navText: {
     fontSize: 12,
     color: 'rgba(17,24,39,0.64)',
@@ -173,6 +212,32 @@ const styles = StyleSheet.create({
   },
   navTextActive: {
     color: COLORS.primary,
+    fontWeight: '600',
+  },
+  unreadDot: {
+    position: 'absolute',
+    top: -2,
+    right: -6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -10,
+    minWidth: 18,
+    paddingHorizontal: 4,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  unreadBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
     fontWeight: '600',
   },
 });
