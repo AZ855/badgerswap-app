@@ -24,6 +24,7 @@ import {
 } from "../../lib/firebase";
 
 import { db } from "../../lib/firebase";
+import { increment } from "firebase/firestore";
 
 // Photo upload
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
@@ -196,6 +197,15 @@ export async function sendMessage(
         timestamp: serverTimestamp(),
         [`unread.${otherUser}`]: (data.unread?.[otherUser] || 0) + 1,
     });
+
+    try {
+        if (data.itemId) {
+            const listingRef = doc(db, "listings", data.itemId);
+            await updateDoc(listingRef, { messagesCount: increment(1) });
+        }
+    } catch (err) {
+        console.error("Failed to bump messagesCount for listing", err);
+    }
 }
 
 // =====================================================================
@@ -250,6 +260,15 @@ export async function sendPhoto(
         timestamp: serverTimestamp(),
         [`unread.${otherUser}`]: (data.unread?.[otherUser] || 0) + 1,
     });
+
+    try {
+        if (data.itemId) {
+            const listingRef = doc(db, "listings", data.itemId);
+            await updateDoc(listingRef, { messagesCount: increment(1) });
+        }
+    } catch (err) {
+        console.error("Failed to bump messagesCount for listing (photo)", err);
+    }
 }
 
 // =====================================================================

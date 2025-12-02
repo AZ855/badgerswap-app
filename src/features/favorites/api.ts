@@ -5,7 +5,9 @@ import {
   onSnapshot,
   serverTimestamp,
   setDoc,
+  updateDoc,
 } from '../../lib/firebase';
+import { increment } from 'firebase/firestore';
 import type { Item } from '../marketplace/types';
 
 export type FavoriteSnapshotCallback = (isFavorite: boolean) => void;
@@ -46,9 +48,21 @@ export async function addFavoriteListing(userId: string, item: Item) {
     postedAt: item.postedAt ?? null,
     savedAt: serverTimestamp(),
   });
+  try {
+    const listingRef = doc(db, 'listings', item.id);
+    await updateDoc(listingRef, { favoritesCount: increment(1) });
+  } catch (err) {
+    console.error('Failed to bump favoritesCount for listing', err);
+  }
 }
 
 export async function removeFavoriteListing(userId: string, listingId: string) {
   const ref = doc(db, 'users', userId, 'favorites', listingId);
   await deleteDoc(ref);
+  try {
+    const listingRef = doc(db, 'listings', listingId);
+    await updateDoc(listingRef, { favoritesCount: increment(-1) });
+  } catch (err) {
+    console.error('Failed to decrement favoritesCount for listing', err);
+  }
 }

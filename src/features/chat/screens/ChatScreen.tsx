@@ -99,19 +99,43 @@ export default function ChatScreen() {
 
       const data = snap.data();
 
-      const otherId = data.participants.find((p: string) => p !== user.uid);
+      const selfId = user.uid;
+      const buyerId = data.buyerId as string | undefined;
+      const sellerId = data.sellerId as string | undefined;
 
-      const pName =
-          otherId === data.sellerId ? data.sellerName : data.buyerName;
+      let otherId = data.participants.find((p: string) => p !== selfId);
 
-      const pInitials =
-          otherId === data.sellerId ? data.sellerInitials : data.buyerInitials;
+      let pName: string | undefined;
+      let pInitials: string | undefined;
 
-      setPartnerName(pName || "User");
+      if (selfId && buyerId && sellerId) {
+        if (selfId === buyerId) {
+          pName = data.sellerName;
+          pInitials = data.sellerInitials;
+          otherId = sellerId;
+        } else if (selfId === sellerId) {
+          pName = data.buyerName;
+          pInitials = data.buyerInitials;
+          otherId = buyerId;
+        }
+      }
+
+      if (!pName || !pInitials) {
+        // Fallback to participant-based resolution
+        const fallbackOther = otherId;
+        pName =
+          fallbackOther === data.sellerId ? data.sellerName : data.buyerName;
+        pInitials =
+          fallbackOther === data.sellerId
+            ? data.sellerInitials
+            : data.buyerInitials;
+      }
+
+      setPartnerName((pName || "User").toString());
       setPartnerInitials((pInitials || "U").toUpperCase());
-      setItemName(data.itemName || "Item");
-      setPartnerId(otherId || "");
-      setItemId(data.itemId || "");
+      setItemName((data.itemName || "Item").toString());
+      setPartnerId((otherId || "").toString());
+      setItemId((data.itemId || "").toString());
     };
 
     loadThreadInfo();
