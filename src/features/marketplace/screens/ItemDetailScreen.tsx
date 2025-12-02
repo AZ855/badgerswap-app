@@ -14,7 +14,8 @@ import {
   View,
 } from 'react-native';
 import { useBlockingStatus } from '../../../hooks/useBlockingStatus';
-import { db, doc, onSnapshot } from '../../../lib/firebase';
+import { db, doc, onSnapshot, updateDoc } from '../../../lib/firebase';
+import { increment } from 'firebase/firestore';
 import { COLORS } from '../../../theme/colors';
 import { useAuth } from '../../auth/AuthProvider';
 import { getOrCreateThread } from '../../chat/api';
@@ -49,6 +50,7 @@ export default function ItemDetailScreen() {
   const [statusBusy, setStatusBusy] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const { user } = useAuth();
+  const viewTrackedRef = useRef(false);
   const { isBlocked, blockedByOther, loading: blockLoading } = useBlockingStatus(
     user?.uid,
     item?.sellerId
@@ -131,6 +133,19 @@ export default function ItemDetailScreen() {
 
     return unsubscribe;
   }, [itemId]);
+
+  useEffect(() => {
+    if (!item || viewTrackedRef.current) return;
+    const isOwnListing = Boolean(user?.uid && item.sellerId === user.uid);
+    if (isOwnListing) return;
+    viewTrackedRef.current = true;
+    try {
+      const ref = doc(db, 'listings', item.id);
+      updateDoc(ref, { viewsCount: increment(1) }).catch(() => {});
+    } catch {
+      // ignore
+    }
+  }, [item, user?.uid, viewTrackedRef]);
 
   // Live seller profile (photo + name) so updates propagate to listings
   useEffect(() => {
