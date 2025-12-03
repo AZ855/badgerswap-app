@@ -25,6 +25,7 @@ import {
 
 import { db } from "../../lib/firebase";
 import { increment } from "firebase/firestore";
+import { uploadImageAsync } from "../posting/cloudinary";
 
 // Photo upload
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
@@ -240,34 +241,26 @@ export async function sendPhoto(
 
     if (!otherUser) return;
 
-    // 1. Convert URI to Blob
-    const response = await fetch(localUri);
-    const blob = await response.blob();
+    // --------------------------------------------------------------
+    // Upload to Cloudinary instead of Firebase Storage
+    // --------------------------------------------------------------
+    const downloadUrl = await uploadImageAsync(localUri);
 
-    // 2. Upload to Firebase Storage
-    const storageRef = ref(
-        storage,
-        `chatPhotos/${threadId}/${Date.now()}_${senderId}.jpg`
-    );
-
-    await uploadBytes(storageRef, blob);
-
-    // 3. Get public URL
-    const downloadUrl = await getDownloadURL(storageRef);
-
+    // --------------------------------------------------------------
+    // Save image message
+    // --------------------------------------------------------------
     const messagesRef = collection(threadRef, "messages");
 
-    // 4. Save image message
     await addDoc(messagesRef, {
         senderId,
         photoUrl: downloadUrl,
         createdAt: serverTimestamp(),
-
-        // NEW — withdrawn default false
         withdrawn: false,
     });
 
-    // 5. Update thread preview
+    // --------------------------------------------------------------
+    // Update thread preview
+    // --------------------------------------------------------------
     await updateDoc(threadRef, {
         lastMessage: "[Photo]",
         timestamp: serverTimestamp(),
