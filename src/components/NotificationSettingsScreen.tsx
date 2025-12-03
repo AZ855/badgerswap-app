@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    KeyboardAvoidingView,
     ScrollView,
     StyleSheet,
     Switch,
@@ -68,7 +69,10 @@ export default function NotificationSettingsScreen() {
       userRef,
       (snap) => {
         if (snap.exists()) {
-          const data = snap.data() as { notificationPreferences?: Partial<typeof DEFAULT_PREFS> };
+          const data = snap.data() as {
+                notificationPreferences?: Partial<typeof DEFAULT_PREFS>;
+          };
+
           const nextPrefs = { ...DEFAULT_PREFS, ...data.notificationPreferences };
           setPrefs(nextPrefs);
         } else {
@@ -141,45 +145,47 @@ export default function NotificationSettingsScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Notifications</Text>
-        <Text style={styles.subtitle}>{headerText}</Text>
-      </View>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Notifications</Text>
+          <Text style={styles.subtitle}>{headerText}</Text>
+        </View>
 
-      <View style={styles.card}>
-        {OPTIONS.map((option, index) => {
-          const value = prefs[option.key];
-          const disabled = pendingKey === option.key;
-          return (
-            <View
-              key={option.key}
-              style={[styles.option, index > 0 && styles.optionDivider]}
-            >
-              <View style={styles.optionTextWrap}>
-                <Text style={styles.optionTitle}>{option.title}</Text>
-                <Text style={styles.optionDescription}>{option.description}</Text>
-              </View>
-              <Switch
-                value={value}
-                onValueChange={(next) => togglePreference(option.key, next)}
-                disabled={disabled}
-                thumbColor={value ? COLORS.white : '#E5E7EB'}
-                trackColor={{ true: COLORS.primary, false: '#E5E7EB' }}
-              />
+        <View style={styles.card}>
+          {OPTIONS.map((option, index) => {
+            const value = prefs[option.key];
+            const disabled = pendingKey === option.key;
+            return (
+              <View
+                key={option.key}
+                style={[styles.option, index > 0 && styles.optionDivider]}
+              >
+                <View style={styles.optionTextWrap}>
+                  <Text style={styles.optionTitle}>{option.title}</Text>
+                  <Text style={styles.optionDescription}>{option.description}</Text>
+                </View>
+                <Switch
+                  value={value}
+                  onValueChange={(next) => togglePreference(option.key, next)}
+                  disabled={disabled}
+                  thumbColor={value ? COLORS.white : '#E5E7EB'}
+                  trackColor={{ true: COLORS.primary, false: '#E5E7EB' }}
+                />
             </View>
           );
         })}
       </View>
 
       <View style={styles.infoRow}>
-        <Feather name="info" size={18} color={COLORS.primary} />
-        <Text style={styles.infoText}>
-          BadgerSwap respects your choices. Turning notifications off here stops alerts from us,
-          but your system settings control whether notifications are allowed on your device.
-        </Text>
-      </View>
-    </ScrollView>
+          <Feather name="info" size={18} color={COLORS.primary} />
+          <Text style={styles.infoText}>
+            BadgerSwap respects your choices. Turning notifications off here stops alerts from us,
+            but your system settings control whether notifications are allowed on your device.
+          </Text>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -272,7 +278,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
+    alignItems: 'center',
   },
+  primaryButtonDisabled: { opacity: 0.6 },
   primaryButtonText: {
     color: COLORS.white,
     fontWeight: '700',

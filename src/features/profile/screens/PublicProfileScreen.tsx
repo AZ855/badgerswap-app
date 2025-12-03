@@ -31,6 +31,7 @@ type ProfileDoc = {
   phone?: string | null;
   email?: string;
   isPrivate?: boolean;
+  pronouns?: string | null;
 };
 
 export default function PublicProfileScreen() {
@@ -60,6 +61,13 @@ export default function PublicProfileScreen() {
   const displayName = profile?.displayName?.trim() || 'BadgerSwap User';
   const uwVerified = (profile?.email ?? '').toLowerCase().endsWith('@wisc.edu');
 
+  const normalizePronouns = (value?: string | null) => {
+    const trimmed = typeof value === 'string' ? value.trim() : '';
+    if (!trimmed) return null;
+    if (trimmed.toLowerCase() === 'prefer not to say') return null;
+    return trimmed;
+  };
+
   useEffect(() => {
     if (!sellerId) {
       setProfile(null);
@@ -79,7 +87,17 @@ export default function PublicProfileScreen() {
         } else {
           const data = snap.data() as ProfileDoc;
           const phoneNumber = (data.phoneNumber ?? data.phone ?? '')?.trim();
-          setProfile({ ...data, phoneNumber: phoneNumber || null });
+          const photoURL =
+            typeof data.photoURL === 'string' && data.photoURL.trim().length > 0
+              ? data.photoURL.trim()
+              : null;
+
+          setProfile({
+            ...data,
+            phoneNumber: phoneNumber || null,
+            pronouns: normalizePronouns(data.pronouns),
+            photoURL,
+          });
           setProfileError(null);
         }
         setProfileLoading(false);
@@ -169,6 +187,7 @@ export default function PublicProfileScreen() {
         showStats={!hideDetails}
         showHandle={false}
         phoneNumber={hideDetails ? null : profile?.phoneNumber ?? null}
+        pronouns={hideDetails ? null : profile?.pronouns ?? null}
         photoURL={profile?.photoURL ?? null}
         variant="full"
       />

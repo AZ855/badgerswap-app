@@ -18,6 +18,8 @@ export interface ProfileHeaderProps {
   // extra fields under name
   phoneNumber?: string | null;
 
+  pronouns?: string | null;
+
   // NEW: optional photo URL for avatar
   photoURL?: string | null;
 }
@@ -33,6 +35,7 @@ export default function ProfileHeader({
   variant = 'full',
   collapseProgress,
   phoneNumber,
+  pronouns,
   photoURL,
 }: ProfileHeaderProps) {
   const p = collapseProgress ?? new Animated.Value(0);
@@ -76,6 +79,11 @@ export default function ProfileHeader({
                 <Feather name="check" size={12} color={COLORS.white} />
               </View>
             )}
+            {pronouns ? (
+              <View style={styles.pronounPill}>
+                <Text style={styles.pronounText}>{pronouns}</Text>
+              </View>
+            ) : null}
           </View>
 
           {uwVerified && (
@@ -191,6 +199,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  pronounPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 12,
+  },
+  pronounText: { color: '#4338CA', fontWeight: '700', fontSize: 12 },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',

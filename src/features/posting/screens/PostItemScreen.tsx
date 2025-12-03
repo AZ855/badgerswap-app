@@ -235,7 +235,7 @@ export default function PostItemScreen() {
     void loadDraftListing(userId).then((draft) => {
       if (!draft) return;
       setTitle(draft.title ?? '');
-      setCategories(draft.categories ?? []);
+      setCategories(draft.categories?.[0] ? [draft.categories[0]] : []);
       setCondition((draft.condition as Item['condition']) ?? '');
       setPrice(draft.price ?? '');
       setDescription(draft.description ?? '');
@@ -650,7 +650,7 @@ export default function PostItemScreen() {
             </View>
           </View>
 
-          {/* Category Chips (multi-select) */}
+          {/* Category Chips */}
           <View style={styles.section}>
             <View style={styles.labelRow}>
               <Text style={styles.label}>Category</Text>
@@ -666,9 +666,7 @@ export default function PostItemScreen() {
                   ]}
                   onPress={() => {
                     setCategories((prev) =>
-                      prev.includes(cat.id)
-                        ? prev.filter((c) => c !== cat.id)
-                        : [...prev, cat.id]
+                      prev[0] === cat.id ? [] : [cat.id]
                     );
                   }}
                 >

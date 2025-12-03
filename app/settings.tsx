@@ -129,6 +129,13 @@ export default function SettingsScreen() {
         href="/account-center"
         right={<Text style={{ color: '#9CA3AF' }}> </Text>}
       />
+      <Row
+        icon="sliders"
+        title="Preferences"
+        subtitle="Pronouns and recommendations"
+        href="/preferences"
+        right={<Text style={{ color: '#9CA3AF' }}> </Text>}
+      />
 
       {/* How you use BadgerSwap */}
       <Text style={styles.sectionLabel}>How you use BadgerSwap</Text>
