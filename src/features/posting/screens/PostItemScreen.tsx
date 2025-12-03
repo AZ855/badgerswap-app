@@ -14,12 +14,14 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useToast } from '../../../components/ToastProvider';
 import { auth } from '../../../lib/firebase';
 import { COLORS } from '../../../theme/colors';
 import type { Category, Item } from '../../marketplace/types';
 import { updateListing } from '../api';
 import { uploadImageAsync } from '../cloudinary';
 import { PickupLocationModal, type LocationSelection } from '../components/PickupLocationModal';
+import { clearDraftListing, loadDraftListing, saveDraftListing } from '../draftStorage';
 import { publishListing, type ListingImageSource } from '../publishListing';
 
 const CATEGORIES = [
@@ -71,6 +73,7 @@ export default function PostItemScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ editItem?: string }>();
   const actionsAnim = useRef(new Animated.Value(0)).current;
+  const { showToast } = useToast();
 
   const [title, setTitle] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
@@ -83,6 +86,7 @@ export default function PostItemScreen() {
   const [locationSelection, setLocationSelection] = useState<LocationSelection | null>(null);
   const [locationModalVisible, setLocationModalVisible] = useState(false);
   const [posting, setPosting] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [editingListingId, setEditingListingId] = useState<string | null>(null);
   const [initializedFromEdit, setInitializedFromEdit] = useState(false);
   const [originalListingSnapshot, setOriginalListingSnapshot] = useState<{
@@ -109,6 +113,17 @@ export default function PostItemScreen() {
       typeof locationSelection?.lat === 'number' &&
       typeof locationSelection?.lng === 'number'
   );
+  const hasDraftableContent =
+    !isEditing &&
+    Boolean(
+      title.trim() ||
+        categories.length > 0 ||
+        condition ||
+        price.trim() ||
+        description.trim() ||
+        images.length > 0 ||
+        effectiveLocation
+    );
 
   const normalizeLocation = (selection: LocationSelection | null) => {
     if (!selection) return null;
@@ -156,7 +171,7 @@ export default function PostItemScreen() {
 
   const canSubmit = isEditing ? hasEditingChanges : isFormValid;
   const canPreview = isFormValid;
-  const shouldShowActions = canPreview || canSubmit;
+  const shouldShowActions = canPreview || canSubmit || hasDraftableContent;
 
   useEffect(() => {
     Animated.timing(actionsAnim, {
@@ -211,6 +226,37 @@ export default function PostItemScreen() {
 
     setInitializedFromEdit(true);
   }, [params.editItem, initializedFromEdit]);
+
+  useEffect(() => {
+    if (isEditing || params.editItem) return;
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
+
+    void loadDraftListing(userId).then((draft) => {
+      if (!draft) return;
+      setTitle(draft.title ?? '');
+      setCategories(draft.categories ?? []);
+      setCondition((draft.condition as Item['condition']) ?? '');
+      setPrice(draft.price ?? '');
+      setDescription(draft.description ?? '');
+      setLocationSelection(
+        draft.location
+          ? {
+              description: draft.location.description ?? '',
+              lat: typeof draft.location.lat === 'number' ? draft.location.lat : undefined,
+              lng: typeof draft.location.lng === 'number' ? draft.location.lng : undefined,
+            }
+          : null
+      );
+      setImages(
+        (draft.images ?? []).map((img, idx) => ({
+          id: `draft-${idx}`,
+          localUri: img.localUri,
+          remoteUrl: img.remoteUrl ?? undefined,
+        }))
+      );
+    });
+  }, [isEditing, params.editItem]);
 
   const removeImage = (id: string) => {
     setImages((prev) => prev.filter((img) => img.id !== id));
@@ -287,6 +333,41 @@ export default function PostItemScreen() {
     ]);
   };
 
+  const handleSaveDraft = async () => {
+    if (savingDraft) return;
+    const userId = auth.currentUser?.uid;
+    if (!userId) {
+      Alert.alert('Not signed in', 'Please log in before saving a draft.');
+      return;
+    }
+
+    setSavingDraft(true);
+    try {
+      await saveDraftListing(userId, {
+        title,
+        categories,
+        condition,
+        price,
+        description,
+        images: images.map((img) => ({
+          localUri: img.localUri,
+          remoteUrl: img.remoteUrl ?? null,
+        })),
+        location: locationSelection,
+        lastReminderAt: Date.now(),
+      });
+      showToast({
+        title: 'Draft saved',
+        message: 'We will remind you to finish it later.',
+      });
+    } catch (err: any) {
+      console.error('Failed to save draft', err);
+      Alert.alert('Could not save draft', err?.message ?? 'Please try again.');
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
   // Basic client-side validation prevents wasted uploads + Firestore writes.
   const ensureFormReady = () => {
     const normalizedLocation = normalizeLocation(locationSelection);
@@ -360,6 +441,9 @@ export default function PostItemScreen() {
     setDescription('');
     setImages([]);
     setLocationSelection(null);
+    if (auth.currentUser?.uid) {
+      void clearDraftListing(auth.currentUser.uid);
+    }
   };
 
   const navigateHome = () => {
@@ -748,6 +832,17 @@ export default function PostItemScreen() {
           },
         ]}
       >
+        {!isEditing && hasDraftableContent && (
+          <TouchableOpacity
+            style={styles.draftButton}
+            disabled={posting || savingDraft}
+            onPress={handleSaveDraft}
+          >
+            <Text style={styles.draftButtonText}>
+              {savingDraft ? 'Saving draft...' : 'Save draft'}
+            </Text>
+          </TouchableOpacity>
+        )}
         {canPreview && (
           <TouchableOpacity
             style={styles.previewButton}
@@ -1126,6 +1221,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     zIndex: 10,
     elevation: 6,
+  },
+  draftButton: {
+    flex: 1,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  draftButtonText: {
+    color: COLORS.white,
+    fontWeight: '700',
   },
   previewButton: {
     flex: 1,

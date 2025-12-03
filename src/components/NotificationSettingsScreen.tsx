@@ -40,7 +40,7 @@ const OPTIONS: {
   {
     key: 'reminders',
     title: 'Reminders',
-    description: 'Receive nudges about unfinished posts and upcoming meetups.',
+    description: 'Receive nudges about unfinished posts.',
   },
   {
     key: 'recommendations',

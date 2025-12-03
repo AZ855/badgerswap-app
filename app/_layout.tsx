@@ -8,6 +8,7 @@ import { ToastProvider } from '../src/components/ToastProvider';
 import { AuthProvider, useAuth } from '../src/features/auth/AuthProvider';
 import { useMessageNotifications } from '../src/features/chat/useMessageNotifications';
 import { useMarketplaceNotifications } from '../src/features/marketplace/useMarketplaceNotifications';
+import { DraftReminderListener } from '../src/features/posting/useDraftReminder';
 import { COLORS } from '../src/theme/colors';
 
 export default function RootLayout() {
@@ -154,5 +155,5 @@ function LayoutContent() {
 function NotificationListeners() {
   useMessageNotifications();
   useMarketplaceNotifications();
-  return null;
+  return <DraftReminderListener />;
 }
