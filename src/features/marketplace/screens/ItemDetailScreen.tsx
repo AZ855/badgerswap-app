@@ -7,6 +7,8 @@ import {
   Animated,
   Dimensions,
   Image,
+  Linking,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -240,6 +242,41 @@ export default function ItemDetailScreen() {
   const isSold = item?.status === 'sold';
   const postedDate =
     item?.postedAt != null ? formatTimeAgo(item.postedAt) : 'Just now';
+  const hasMapTarget = Boolean(item?.location || item?.locationCoordinates);
+  const handleOpenLocation = () => {
+    if (!item || !hasMapTarget) return;
+    Alert.alert(
+      'Open in maps?',
+      'We will open your maps app to show this pickup location.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          onPress: async () => {
+            const label = encodeURIComponent(item.location ?? 'Pickup location');
+            const latLng = item.locationCoordinates
+              ? `${item.locationCoordinates.lat},${item.locationCoordinates.lng}`
+              : undefined;
+            const appleUrl = latLng
+              ? `http://maps.apple.com/?ll=${latLng}&q=${label}`
+              : `http://maps.apple.com/?q=${label}`;
+            const googleUrl = latLng
+              ? `https://www.google.com/maps/search/?api=1&query=${latLng}`
+              : `https://www.google.com/maps/search/?api=1&query=${label}`;
+            const targetUrl =
+              Platform.select({ ios: appleUrl, macos: appleUrl, default: googleUrl }) ?? googleUrl;
+            try {
+              const supported = await Linking.canOpenURL(targetUrl);
+              await Linking.openURL(supported ? targetUrl : googleUrl);
+            } catch (err) {
+              Alert.alert('Unable to open maps', 'Please try again later.');
+              console.error('Failed to open maps', err);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   // Central toggle handler so the UI stays atomic
   const toggleFavorite = async () => {
@@ -465,7 +502,12 @@ export default function ItemDetailScreen() {
             )}
           </View>
 
-          <View style={styles.locationCard}>
+          <TouchableOpacity
+            style={[styles.locationCard, !hasMapTarget && { opacity: 0.6 }]}
+            activeOpacity={0.8}
+            onPress={handleOpenLocation}
+            disabled={!hasMapTarget}
+          >
             <View style={styles.locationIcon}>
               <Feather name="map-pin" size={18} color={COLORS.primary} />
             </View>
@@ -473,7 +515,7 @@ export default function ItemDetailScreen() {
               <Text style={styles.locationLabel}>Pickup location</Text>
               <Text style={styles.locationValue}>{item.location}</Text>
             </View>
-          </View>
+          </TouchableOpacity>
 
           {/* Seller Info */}
           <View style={styles.sellerCard}>

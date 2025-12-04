@@ -34,6 +34,7 @@ import {
   TouchableOpacity,
   Animated,
   StyleSheet,
+  Alert,
 } from 'react-native';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
 
@@ -167,7 +168,7 @@ export default function ChatListScreen() {
     setHiddenThreadIds((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]));
   };
 
-  const handleDelete = async (item: any) => {
+  const executeDelete = async (item: any) => {
     try {
       const threadRef = doc(db, 'chats', item.id);
       const msgsRef = collection(threadRef, 'messages');
@@ -179,6 +180,33 @@ export default function ChatListScreen() {
     } catch (err) {
       console.error('Failed to delete thread', err);
     }
+  };
+
+  const handleDelete = (item: any) => {
+    const closeRow = () => {
+      if (openSwipeRef.current) {
+        openSwipeRef.current.close();
+      }
+    };
+    Alert.alert(
+      'Delete conversation?',
+      'This will clear the entire chat history for this thread.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: closeRow,
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            executeDelete(item);
+            closeRow();
+          },
+        },
+      ]
+    );
   };
 
   const renderRightActions = (item: any, progress: Animated.AnimatedInterpolation<number>) => {
