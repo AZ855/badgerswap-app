@@ -41,6 +41,7 @@ import { router } from 'expo-router';
 import { db, doc, updateDoc, collection, getDocs, writeBatch } from '../../../lib/firebase';
 import { Feather as Icon } from '@expo/vector-icons';
 import { COLORS } from '../../../theme/colors';
+import SwipeRowActions from '../components/SwipeRowActions';
 
 // Pull-to-refresh helper
 import { usePullToRefresh } from '../../../hooks/usePullToRefresh';
@@ -181,36 +182,15 @@ export default function ChatListScreen() {
   };
 
   const renderRightActions = (item: any, progress: Animated.AnimatedInterpolation<number>) => {
-    const translateX = progress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [80 * 3, 0],
-    });
     const isCurrentlyUnread = item.unreadCount > 0;
     return (
-      <Animated.View style={[styles.swipeActions, { transform: [{ translateX }] }]}>
-        <TouchableOpacity
-          style={[styles.swipeAction, styles.swipeMark]}
-          onPress={() => handleToggleRead(item)}
-        >
-          <Text style={styles.swipeText}>
-            {'Mark as'}
-            {'\n'}
-            {isCurrentlyUnread ? 'read' : 'unread'}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.swipeAction, styles.swipeHide]}
-          onPress={() => handleHide(item)}
-        >
-          <Text style={styles.swipeText}>Hide</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.swipeAction, styles.swipeDelete]}
-          onPress={() => handleDelete(item)}
-        >
-          <Text style={styles.swipeText}>Delete</Text>
-        </TouchableOpacity>
-      </Animated.View>
+      <SwipeRowActions
+        progress={progress}
+        isUnread={isCurrentlyUnread}
+        onToggleRead={() => handleToggleRead(item)}
+        onHide={() => handleHide(item)}
+        onDelete={() => handleDelete(item)}
+      />
     );
   };
 
@@ -225,6 +205,7 @@ export default function ChatListScreen() {
         ref={(ref) => {
           rowSwipeRef = ref;
         }}
+        overshootRight={false}
         renderRightActions={(progress) => renderRightActions(item, progress)}
         onSwipeableWillOpen={() => {
           if (openSwipeRef.current && openSwipeRef.current !== rowSwipeRef) {
@@ -545,28 +526,5 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 16,
     fontWeight: '600',
-  },
-  swipeActions: {
-    flexDirection: 'row',
-    height: '100%',
-  },
-  swipeAction: {
-    width: 80,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  swipeMark: {
-    backgroundColor: '#007AFF',
-  },
-  swipeHide: {
-    backgroundColor: '#FF9500',
-  },
-  swipeDelete: {
-    backgroundColor: '#FF3B30',
-  },
-  swipeText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    textAlign: 'center',
   },
 });

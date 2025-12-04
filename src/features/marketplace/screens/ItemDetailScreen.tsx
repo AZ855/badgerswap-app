@@ -7,6 +7,7 @@ import {
   Animated,
   Dimensions,
   Image,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,6 +18,7 @@ import { useBlockingStatus } from '../../../hooks/useBlockingStatus';
 import { db, doc, onSnapshot, updateDoc } from '../../../lib/firebase';
 import { increment } from 'firebase/firestore';
 import { COLORS } from '../../../theme/colors';
+import PhotoViewer from '../../../components/PhotoViewer';
 import { useAuth } from '../../auth/AuthProvider';
 import { getOrCreateThread } from '../../chat/api';
 import {
@@ -55,6 +57,8 @@ export default function ItemDetailScreen() {
     user?.uid,
     item?.sellerId
   );
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(0);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -207,6 +211,16 @@ export default function ItemDetailScreen() {
   }, [user?.uid, itemId, item?.sellerId]);
 
   const images = item?.imageUrls?.length ? item.imageUrls : [null];
+  const galleryImages = (item?.imageUrls ?? []).filter((uri): uri is string => Boolean(uri));
+  const watermarkHandle = (sellerProfile?.name ?? item?.seller?.name ?? 'seller')
+    .replace(/\s+/g, '')
+    .toLowerCase();
+  const handleImagePress = (index: number) => {
+    if (!galleryImages.length) return;
+    const boundedIndex = Math.min(Math.max(index, 0), galleryImages.length - 1);
+    setViewerIndex(boundedIndex);
+    setViewerVisible(true);
+  };
 
   const MAX_NAME_CHARS = 11; // Target length equal to "Johnny Hong"
   const truncateName = (name: string, max: number) =>
@@ -379,7 +393,12 @@ export default function ItemDetailScreen() {
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Image Carousel */}
-        <Carousel images={images} currentIndex={currentImageIndex} setIndex={setCurrentImageIndex} />
+        <Carousel
+          images={images}
+          currentIndex={currentImageIndex}
+          setIndex={setCurrentImageIndex}
+          onImagePress={handleImagePress}
+        />
 
         {/* Content */}
         <View style={styles.content}>
@@ -659,6 +678,13 @@ export default function ItemDetailScreen() {
           </TouchableOpacity>
         </View>
       )}
+      <PhotoViewer
+        visible={viewerVisible && galleryImages.length > 0}
+        images={galleryImages}
+        initialIndex={viewerIndex}
+        onClose={() => setViewerVisible(false)}
+        watermarkTag={watermarkHandle}
+      />
     </View>
   );
 }
@@ -673,20 +699,23 @@ function formatTimeAgo(iso: string) {
 }
 
 // Lightweight carousel that mimics the native gallery feel
-function Carousel({ images, currentIndex, setIndex }: { images: (string | null)[]; currentIndex: number; setIndex: (i: number) => void; }) {
+function Carousel({
+  images,
+  currentIndex,
+  setIndex,
+  onImagePress,
+}: {
+  images: (string | null)[];
+  currentIndex: number;
+  setIndex: (i: number) => void;
+  onImagePress?: (index: number) => void;
+}) {
   const { width } = Dimensions.get('window');
   const scrollX = useRef(new Animated.Value(0)).current;
   const listRef = useRef<Animated.FlatList<string | null>>(null);
 
   const onMomentumEnd = (e: any) => {
     const i = Math.round(e.nativeEvent.contentOffset.x / width);
-    setIndex(i);
-  };
-
-  const goTo = (i: number) => {
-    if (i < 0 || i >= images.length) return;
-    // @ts-ignore - Animated.FlatList has scrollToIndex
-    listRef.current?.scrollToIndex?.({ index: i, animated: true });
     setIndex(i);
   };
 
@@ -704,10 +733,12 @@ function Carousel({ images, currentIndex, setIndex }: { images: (string | null)[
           [{ nativeEvent: { contentOffset: { x: scrollX } } }],
           { useNativeDriver: false }
         )}
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <View style={{ width }}>
             {item ? (
-              <Image source={{ uri: item }} style={styles.image} resizeMode="cover" />
+              <Pressable style={{ flex: 1 }} onPress={() => onImagePress?.(index)}>
+                <Image source={{ uri: item }} style={styles.image} resizeMode="cover" />
+              </Pressable>
             ) : (
               <View style={styles.imagePlaceholder}>
                 <Feather name="book" size={64} color="#9CA3AF" />
@@ -738,16 +769,6 @@ function Carousel({ images, currentIndex, setIndex }: { images: (string | null)[
         </View>
       )}
 
-      {images.length > 1 && (
-        <>
-          <TouchableOpacity style={[styles.navButton, styles.navLeft]} onPress={() => goTo(currentIndex - 1)} accessibilityLabel="Previous image">
-            <Feather name="chevron-left" size={22} color="#111827" />
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.navButton, styles.navRight]} onPress={() => goTo(currentIndex + 1)} accessibilityLabel="Next image">
-            <Feather name="chevron-right" size={22} color="#111827" />
-          </TouchableOpacity>
-        </>
-      )}
     </View>
   );
 }
@@ -797,18 +818,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     width: 24,
   },
-  navButton: {
-    position: 'absolute',
-    top: '45%',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navLeft: { left: 12 },
-  navRight: { right: 12 },
   content: {
     padding: 20,
   },
