@@ -1,5 +1,5 @@
 // Centralized Firebase bootstrap so every feature imports the same app/auth/db instances.
-import { getReactNativePersistence, initializeAuth } from "@firebase/auth/dist/rn/index.js";
+import { getReactNativePersistence, initializeAuth } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApps, initializeApp } from 'firebase/app';
 

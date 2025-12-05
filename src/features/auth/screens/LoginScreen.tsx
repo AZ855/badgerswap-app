@@ -2,6 +2,8 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   Alert,
+  Image,
+  ImageSourcePropType,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -14,6 +16,7 @@ import { COLORS } from '../../../theme/colors';
 import { sendUWPasswordReset, signInUW } from '../api';
 
 const UW_EMAIL_RE = /^[a-z0-9._%+-]+@wisc\.edu$/i;
+const LOGO: ImageSourcePropType = require('../../../../assets/images/BadgerSwap_Logo.png');
 
 export default function LoginScreen() {
   const [submitting, setSubmitting] = useState(false);
@@ -97,7 +100,12 @@ export default function LoginScreen() {
     >
       <View style={styles.inner}>
         <View style={styles.logoBox}>
-          <Text style={styles.logoText}>BadgerSwap</Text>
+          <Image
+            source={LOGO}
+            style={styles.logoImage}
+            accessibilityRole="image"
+            accessibilityLabel="BadgerSwap logo"
+          />
         </View>
 
         <View style={styles.card}>
@@ -170,17 +178,12 @@ const styles = StyleSheet.create({
   inner: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
   logoBox: {
     alignSelf: 'center',
-    backgroundColor: COLORS.primary,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 12,
     marginBottom: 32,
   },
-  logoText: {
-    color: COLORS.white,
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+  logoImage: {
+    width: 180,
+    height: 70,
+    resizeMode: 'contain',
   },
   card: {
     backgroundColor: COLORS.white,
@@ -226,7 +229,7 @@ const styles = StyleSheet.create({
   primaryBtnDisabled: {
     opacity: 0.5,
   },
-  primaryBtnText: { color: COLORS.white, fontSize: 16, fontWeight: '700' },
+  primaryBtnText: { color: '#000000', fontSize: 16, fontWeight: '700' },
   linkText: {
     textAlign: 'center',
     color: COLORS.secondary,
