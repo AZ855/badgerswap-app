@@ -1,6 +1,9 @@
 import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { collection, query, where, getDocs, getDoc } from "firebase/firestore";
+
+import { createTransaction } from "../../chat/api";
 import {
   ActivityIndicator,
   Alert,
@@ -346,16 +349,64 @@ export default function ItemDetailScreen() {
     }
   };
 
-  const handleMarkSold = () => {
+  const handleMarkSold = async () => {
     if (!item || !isOwnListing || isSold) return;
 
+    // 1. Build the SAME threadId format as chat.api
+    const a = user!.uid < item.sellerId ? user!.uid : item.sellerId;
+    const b = user!.uid < item.sellerId ? item.sellerId : user!.uid;
+    const threadId = `${a}_${b}_${item.id}`;
+
+    // 2. Load the chat thread
+    const threadRef = doc(db, "chats", threadId);
+    const snap = await getDoc(threadRef);
+
+    if (!snap.exists()) {
+      return Alert.alert(
+          "Mark as Sold",
+          "No chat found for this listing. Mark as sold anyway?",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Mark as Sold", style: "destructive", onPress: () => updateStatus("sold") }
+          ]
+      );
+    }
+
+    const data = snap.data();
+    const accepted = data.acceptedOffer || null;
+
+    // 3. If offer accepted → create transaction + mark sold
+    if (accepted) {
+      return Alert.alert(
+          "Mark as Sold",
+          `Accepted offer: $${accepted.amount}. Mark as sold?`,
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Confirm",
+              style: "destructive",
+              onPress: async () => {
+                await createTransaction({
+                  itemId: item.id,
+                  sellerId: item.sellerId,
+                  buyerId: accepted.buyerId,
+                  amount: accepted.amount,
+                });
+                await updateStatus("sold");
+              },
+            },
+          ]
+      );
+    }
+
+    // 4. No accepted offer
     Alert.alert(
-      'Mark as Sold',
-      'Marking this item as sold will hide the message button for buyers. Continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Mark as Sold', style: 'destructive', onPress: () => void updateStatus('sold') },
-      ]
+        "Mark as Sold",
+        "This item has no accepted offer. Mark as sold anyway?",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Mark as Sold", style: "destructive", onPress: () => updateStatus("sold") }
+        ]
     );
   };
 
