@@ -1,29 +1,3 @@
-/**
- * =====================================================================
- *  ChatScreen – Unified Buyer–Seller Conversation
- * =====================================================================
- *
- *  This screen shows all messages inside a SINGLE conversation thread.
- *
- *  IMPORTANT:
- *  ---------------------------------------------------------------------
- *  We no longer use route params like:
- *      partnerName
- *      itemName
- *
- *  Because:
- *      1. They become outdated immediately when the user messages
- *         the same seller from another item.
- *
- *      2. All accurate metadata (partnerName, partnerInitials,
- *         itemName, etc.) MUST come from Firestore.
- *
- *  Therefore:
- *      ✔ We read threadId from navigation
- *      ✔ We fetch metadata from Firestore
- *      ✔ UI is ALWAYS correct and synced
- */
-
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
@@ -54,104 +28,72 @@ import {
   removeReaction,
   withdrawMessage,
   canWithdrawMessage,
+  sendOffer,
+  acceptOffer,
+  declineOffer,   // ⭐ FIXED: import declineOffer
 } from "../api";
 
 import { db, doc, getDoc } from "../../../lib/firebase";
-
 import * as ImagePicker from "expo-image-picker";
 import { sendPhoto } from "../api";
 
-/* ======================================================================
- *  MAIN CHAT SCREEN
- * ====================================================================== */
 export default function ChatScreen() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-
-  // threadId is the ONLY navigation param
   const { threadId } = useLocalSearchParams() as { threadId: string };
 
-  // Header metadata (loaded from Firestore)
   const [partnerName, setPartnerName] = useState("User");
   const [partnerInitials, setPartnerInitials] = useState("U");
   const [itemName, setItemName] = useState("Item");
   const [partnerId, setPartnerId] = useState("");
   const [itemId, setItemId] = useState("");
 
-  // Message state
+  const [buyerId, setBuyerId] = useState("");
+  const [sellerId, setSellerId] = useState("");
+  const isSeller = user?.uid === sellerId;
+
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<any[]>([]);
-
-  // Reaction picker
   const [activeReactionTarget, setActiveReactionTarget] =
       useState<string | null>(null);
 
-  /* ====================================================================
-   * 1. Load thread header metadata
-   * ==================================================================== */
+  /* Load header metadata */
   useEffect(() => {
     if (!user || !threadId) return;
 
-    const loadThreadInfo = async () => {
-      const ref = doc(db, "chats", threadId);
-      const snap = await getDoc(ref);
-
+    const load = async () => {
+      const snap = await getDoc(doc(db, "chats", threadId));
       if (!snap.exists()) return;
+      const d = snap.data();
 
-      const data = snap.data();
+      setBuyerId(d.buyerId);
+      setSellerId(d.sellerId);
 
-      const selfId = user.uid;
-      const buyerId = data.buyerId as string | undefined;
-      const sellerId = data.sellerId as string | undefined;
+      const self = user.uid;
+      const other = d.participants.find((p: string) => p !== self);
 
-      let otherId = data.participants.find((p: string) => p !== selfId);
+      const pName = self === d.buyerId ? d.sellerName : d.buyerName;
+      const pInit = self === d.buyerId ? d.sellerInitials : d.buyerInitials;
 
-      let pName: string | undefined;
-      let pInitials: string | undefined;
-
-      if (selfId && buyerId && sellerId) {
-        if (selfId === buyerId) {
-          pName = data.sellerName;
-          pInitials = data.sellerInitials;
-          otherId = sellerId;
-        } else if (selfId === sellerId) {
-          pName = data.buyerName;
-          pInitials = data.buyerInitials;
-          otherId = buyerId;
-        }
-      }
-
-      if (!pName || !pInitials) {
-        const fallbackOther = otherId;
-        pName =
-            fallbackOther === data.sellerId ? data.sellerName : data.buyerName;
-        pInitials =
-            fallbackOther === data.sellerId
-                ? data.sellerInitials
-                : data.buyerInitials;
-      }
-
-      setPartnerName((pName || "User").toString());
-      setPartnerInitials((pInitials || "U").toUpperCase());
-      setItemName((data.itemName || "Item").toString());
-      setPartnerId((otherId || "").toString());
-      setItemId((data.itemId || "").toString());
+      setPartnerName(pName || "User");
+      setPartnerInitials((pInit || "U").toUpperCase());
+      setItemName(d.itemName || "Item");
+      setPartnerId(other || "");
+      setItemId(d.itemId || "");
     };
 
-    loadThreadInfo();
+    load();
   }, [threadId, user]);
 
-  /* ====================================================================
-   * 2. Subscribe to message list
-   * ==================================================================== */
+  /* Subscribe to messages */
   useEffect(() => {
     if (!user || !threadId) return;
 
     clearUnread(threadId, user.uid);
 
     const unsub = subscribeToMessages(threadId, (msgs) => {
-      const formatted = msgs.map((m: any) => ({
+      const mapped = msgs.map((m: any) => ({
         id: m.id,
         text: m.text,
         photoUrl: m.photoUrl || null,
@@ -166,22 +108,14 @@ export default function ChatScreen() {
             })
             : "",
       }));
-
-      setMessages(formatted);
+      setMessages(mapped);
     });
 
     return () => unsub();
   }, [threadId, user]);
 
-  /* ====================================================================
-   * Pull-to-refresh (visual only)
-   * ==================================================================== */
-  const handleRefreshMessages = useCallback(() => {
-    return new Promise<void>((resolve) => setTimeout(resolve, 300));
-  }, []);
-
   const messageRefresh = usePullToRefresh({
-    onRefresh: handleRefreshMessages,
+    onRefresh: () => new Promise((r) => setTimeout(r, 300)),
     indicatorOffset: 4,
   });
 
@@ -190,177 +124,193 @@ export default function ChatScreen() {
 
   const messagingDisabled = isBlocked || blockedByOther;
 
-  /* ====================================================================
-   * Reaction Handler
-   * ==================================================================== */
-  const handleReaction = async (
-      msgId: string,
-      current: "like" | "love" | "laugh" | null,
-      chosen: "like" | "love" | "laugh"
-  ) => {
+  /* Reaction Handler */
+  const handleReaction = async (msgId: string, current: any, chosen: any) => {
     if (!user || !threadId) return;
-
-    // NEW: Do not allow reactions on withdrawn messages
-    const targetMsg = messages.find((m) => m.id === msgId);
-    if (targetMsg?.withdrawn) {
-      setActiveReactionTarget(null);
-      return;
-    }
-
+    const msg = messages.find((m) => m.id === msgId);
+    if (msg?.withdrawn) return;
     setActiveReactionTarget(null);
 
-    if (current === chosen) {
-      await removeReaction(threadId, msgId, user.uid);
-      return;
-    }
+    if (current === chosen)
+      return removeReaction(threadId, msgId, user.uid);
 
-    await toggleReaction(threadId, msgId, user.uid, chosen);
+    toggleReaction(threadId, msgId, user.uid, chosen);
   };
 
-  /* ====================================================================
-   * Send a message
-   * ==================================================================== */
+  /* Send text message */
   const sendMessageToFirestore = async () => {
-    if (!message.trim() || !threadId || !user || !partnerId) return;
+    if (!message.trim() || !user || messagingDisabled) return;
 
-    if (messagingDisabled) {
-      Alert.alert(
-          "Messaging blocked",
-          blockedByOther
-              ? "This user has blocked you from messaging them."
-              : "Unblock this user to resume messaging."
-      );
-      return;
-    }
-
-    const { sendMessage: sendMessageAPI } = await import("../api");
-
+    const { sendMessage } = await import("../api");
     try {
-      await sendMessageAPI(threadId, user.uid, message.trim(), partnerId);
+      await sendMessage(threadId, user.uid, message.trim(), partnerId);
       setMessage("");
-    } catch (err: any) {
-      Alert.alert("Unable to send message", err?.message);
+    } catch (e: any) {
+      Alert.alert("Unable to send message", e?.message);
     }
   };
 
-  /* ====================================================================
-  * Send a PHOTO message
-  * ==================================================================== */
+  /* Send photo */
   const pickAndSendPhoto = async () => {
     if (messagingDisabled) return;
-
     const result = await ImagePicker.launchImageLibraryAsync({
       quality: 0.7,
       allowsEditing: false,
-      base64: false,
     });
-
-    if (result.canceled) return;
-
-    const uri = result.assets?.[0]?.uri;
-    if (!uri) return;
-
-    try {
-      await sendPhoto(threadId, user!.uid, uri, partnerId);
-    } catch (err: any) {
-      Alert.alert("Failed to send photo", err?.message);
+    if (!result.canceled) {
+      const uri = result.assets?.[0]?.uri;
+      if (uri) await sendPhoto(threadId, user!.uid, uri, partnerId);
     }
   };
 
-  /* ====================================================================
-   * FIXED — Navigation to Block User Screen
-   * ==================================================================== */
-  const openBlockSettings = () => {
-    if (!partnerId) return;
-
-    // ⭐ FIX: string navigation avoids TS route errors
-    router.push(`/block-user?userId=${partnerId}&name=${partnerName}` as any);
-  };
-
-  /* ====================================================================
-  * Withdraw Message Menu (NEW FEATURE)
-  * ====================================================================
-  *
-  *  Allows user to withdraw their own message if:
-  *     1. They are the sender
-  *     2. The message was created within 3 minutes
-  *
-  *  This shows a small menu:
-  *     - Withdraw message
-  *     - Cancel
-  *
-  *  If confirmed: calls withdrawMessage(threadId, messageId)
-  * ==================================================================== */
+  /* Withdraw message */
   const openWithdrawMenu = (msg: any) => {
-    const isMine = msg.sender === "me";
-    if (!isMine) return;
-
-    // Time limit check
-    const allowed = canWithdrawMessage(msg.raw?.createdAt);
-    if (!allowed) {
-      Alert.alert("Cannot withdraw", "You can only withdraw a message within 3 minutes.");
-      return;
-    }
+    if (msg.sender !== "me") return;
+    if (!canWithdrawMessage(msg.raw?.createdAt))
+      return Alert.alert("Cannot withdraw", "Too late.");
 
     Alert.alert("Message options", "", [
       { text: "Cancel", style: "cancel" },
       {
-        text: "Withdraw message",
+        text: "Withdraw",
         style: "destructive",
-        onPress: async () => {
-          try {
-            await withdrawMessage(threadId, msg.id);
-          } catch {
-            Alert.alert("Failed to withdraw message");
-          }
-        },
+        onPress: () => withdrawMessage(threadId, msg.id),
       },
     ]);
   };
 
-  /* ====================================================================
- * Render a chat bubble + reactions + withdrawn status
- * ==================================================================== */
-  const renderMessage = ({ item }: any) => {
-    const isMine = item.sender === "me";
-    const withdrawn = item.withdrawn === true; // ⭐ NEW
+  /* Send offer */
+  const promptOffer = () => {
+    if (isSeller) return;
+    if (messagingDisabled) return;
 
-    const rawReaction = item.reactions?.[user?.uid ?? ""] ?? null;
-    const typedUserReaction =
-        rawReaction === "like" || rawReaction === "love" || rawReaction === "laugh"
-            ? rawReaction
-            : null;
+    Alert.prompt?.(
+        "Send Offer",
+        "Enter amount:",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Send",
+            onPress: async (value : any) => {
+              const amount = Number(value);
+              if (!amount || amount <= 0) return;
+              await sendOffer(threadId, user!.uid, amount, partnerId);
+            },
+          },
+        ],
+        "plain-text"
+    );
+  };
+
+  /* Offer UI */
+  const renderOffer = (item: any) => {
+    const amt = item.raw.amount;
+    const mine = item.sender === "me";
+
+    return (
+        <View
+            style={[
+              styles.messageBubble,
+              mine ? styles.myMessage : styles.otherMessage,
+            ]}
+        >
+          <Text style={[styles.messageText, mine && styles.myMessageText]}>
+            Offer: ${amt}
+          </Text>
+
+          {/* Accept / Decline buttons (seller only) */}
+          {isSeller && !mine && item.raw.offerStatus === "pending" && (
+              <View style={{ flexDirection: "row", marginTop: 6, gap: 10 }}>
+                <TouchableOpacity
+                    onPress={() =>
+                        acceptOffer(threadId, item.id, item.raw.senderId, amt)
+                    }
+                >
+                  <Text style={{ color: COLORS.primary, fontWeight: "600" }}>
+                    Accept
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    onPress={async () => {
+                      await declineOffer(threadId, item.id);     // ⭐ FIXED
+                      const { sendMessage } = await import("../api");
+                      await sendMessage(
+                          threadId,
+                          user!.uid,
+                          "Offer declined",
+                          partnerId
+                      );
+                    }}
+                >
+                  <Text style={{ color: "#EF4444", fontWeight: "600" }}>
+                    Decline
+                  </Text>
+                </TouchableOpacity>
+              </View>
+          )}
+
+          {/* Status labels */}
+          {item.raw.offerStatus === "accepted" && (
+              <Text style={{ color: COLORS.primary, marginTop: 6 }}>
+                Accepted
+              </Text>
+          )}
+
+          {item.raw.offerStatus === "declined" && (
+              <Text style={{ color: "#EF4444", marginTop: 6 }}>
+                Declined
+              </Text>
+          )}
+        </View>
+    );
+  };
+
+  /* Render message bubble */
+  const renderMessage = ({ item }: any) => {
+    const withdrawn = item.withdrawn;
+    const mine = item.sender === "me";
+
+    if (item.raw.type === "offer") {
+      return (
+          <View
+              style={[
+                styles.messageContainer,
+                mine ? styles.myMessageContainer : styles.otherMessageContainer,
+              ]}
+          >
+            {renderOffer(item)}
+            <Text style={styles.timeText}>{item.time}</Text>
+          </View>
+      );
+    }
 
     return (
         <View
             style={[
               styles.messageContainer,
-              isMine ? styles.myMessageContainer : styles.otherMessageContainer,
+              mine ? styles.myMessageContainer : styles.otherMessageContainer,
             ]}
         >
-          {/* Long press: reactions + withdraw menu */}
           <TouchableOpacity
               activeOpacity={0.9}
               onLongPress={() => {
-                if (!withdrawn) openWithdrawMenu(item);      // ⭐ NEW
-                if (!withdrawn) setActiveReactionTarget(item.id); // ⭐ NEW
+                if (!withdrawn) openWithdrawMenu(item);
+                if (!withdrawn) setActiveReactionTarget(item.id);
               }}
           >
             <View
                 style={[
                   styles.messageBubble,
-                  isMine ? styles.myMessage : styles.otherMessage,
+                  mine ? styles.myMessage : styles.otherMessage,
                 ]}
             >
-              {/* ============================================================
-             *  Withdrawn Message State
-             * ============================================================ */}
               {withdrawn ? (
                   <Text
                       style={[
                         styles.messageText,
                         { fontStyle: "italic", opacity: 0.6 },
-                        isMine && styles.myMessageText,
+                        mine && styles.myMessageText,
                       ]}
                   >
                     Message withdrawn
@@ -368,92 +318,46 @@ export default function ChatScreen() {
               ) : item.photoUrl ? (
                   <Image source={{ uri: item.photoUrl }} style={styles.photo} />
               ) : (
-                  <Text
-                      style={[
-                        styles.messageText,
-                        isMine && styles.myMessageText,
-                      ]}
-                  >
+                  <Text style={[styles.messageText, mine && styles.myMessageText]}>
                     {item.text}
                   </Text>
               )}
             </View>
           </TouchableOpacity>
 
-          {/* Timestamp */}
           <Text style={styles.timeText}>{item.time}</Text>
-
-          {/* ============================================================
-         *  Reactions row (hidden if withdrawn)
-         * ============================================================ */}
-          {!withdrawn && Object.keys(item.reactions).length > 0 && (
-              <View style={styles.reactionRow}>
-                {Object.entries(item.reactions).map(([uid, r]) => {
-                  if (!r) return null;
-                  const emoji = r === "like" ? "👍" : r === "love" ? "❤️" : "😂";
-                  return (
-                      <View key={uid} style={styles.reactionBubble}>
-                        <Text style={styles.reactionText}>{emoji}</Text>
-                      </View>
-                  );
-                })}
-              </View>
-          )}
-
-          {/* ============================================================
-         *  Reaction picker (hidden if withdrawn)
-         * ============================================================ */}
-          {activeReactionTarget === item.id && !withdrawn && (
-              <View style={styles.reactionPicker}>
-                <TouchableOpacity
-                    onPress={() => handleReaction(item.id, typedUserReaction, "like")}
-                >
-                  <Text style={styles.reactionPickerEmoji}>👍</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    onPress={() => handleReaction(item.id, typedUserReaction, "love")}
-                >
-                  <Text style={styles.reactionPickerEmoji}>❤️</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    onPress={() => handleReaction(item.id, typedUserReaction, "laugh")}
-                >
-                  <Text style={styles.reactionPickerEmoji}>😂</Text>
-                </TouchableOpacity>
-              </View>
-          )}
         </View>
     );
   };
 
+  /* Navigate from header */
   const handleHeaderPress = () => {
     if (!itemId && !partnerId) return;
 
     const actions: any[] = [];
-    if (itemId) {
+
+    if (itemId)
       actions.push({
         text: "View this listing",
-        onPress: () => router.push({ pathname: "/item-detail", params: { itemId } }),
+        onPress: () =>
+            router.push({ pathname: "/item-detail", params: { itemId } }),
       });
-    }
 
-    if (partnerId) {
+    if (partnerId)
       actions.push({
         text: "View seller profile",
-        onPress: () => router.push({ pathname: "/seller-profile/[userId]", params: { userId: partnerId } }),
+        onPress: () =>
+            router.push({
+              pathname: "/seller-profile/[userId]",
+              params: { userId: partnerId },
+            }),
       });
-    }
 
     actions.push({ text: "Cancel", style: "cancel" });
 
-    Alert.alert(partnerName, "What would you like to view?", actions);
+    Alert.alert(partnerName, "", actions);
   };
 
-  /* ====================================================================
-   * SCREEN RENDER
-   * ==================================================================== */
   return (
       <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -463,20 +367,27 @@ export default function ChatScreen() {
         {/* HEADER */}
         <View style={styles.header}>
           <TouchableOpacity
-            style={styles.headerLeft}
-            activeOpacity={0.7}
-            onPress={handleHeaderPress}
+              style={styles.headerLeft}
+              activeOpacity={0.7}
+              onPress={handleHeaderPress}
           >
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>{partnerInitials}</Text>
             </View>
+
             <View>
               <Text style={styles.partnerName}>{partnerName}</Text>
               <Text style={styles.itemName}>📦 {itemName}</Text>
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={openBlockSettings}>
+          <TouchableOpacity
+              onPress={() =>
+                  router.push(
+                      `/block-user?userId=${partnerId}&name=${partnerName}`
+                  )
+              }
+          >
             <Icon name="more-vertical" size={24} color="#374151" />
           </TouchableOpacity>
         </View>
@@ -489,7 +400,7 @@ export default function ChatScreen() {
                     ? "Checking block status..."
                     : blockedByOther
                         ? "You cannot send messages to this user."
-                        : "You blocked this user. Unblock in settings to resume chatting."}
+                        : "You blocked this user. Unblock to chat."}
               </Text>
             </View>
         )}
@@ -501,10 +412,7 @@ export default function ChatScreen() {
           {messagingDisabled ? (
               <View style={styles.blockedMessages}>
                 <Icon name="slash" size={24} color={COLORS.primary} />
-                <Text style={styles.blockNoticeText}>
-                  Messages are hidden because{" "}
-                  {blockedByOther ? "this user blocked you" : "you blocked this user"}.
-                </Text>
+                <Text style={styles.blockNoticeText}>Messages hidden.</Text>
               </View>
           ) : (
               <Animated.FlatList
@@ -523,9 +431,27 @@ export default function ChatScreen() {
         </View>
 
         {/* INPUT BAR */}
-        <View style={[styles.inputContainer, { paddingBottom: 10 + Math.max(insets.bottom, 8) }]}>
+        <View
+            style={[
+              styles.inputContainer,
+              { paddingBottom: 10 + Math.max(insets.bottom, 8) },
+            ]}
+        >
+          {/* OFFER BUTTON */}
+          {!isSeller && (
+              <TouchableOpacity
+                  onPress={promptOffer}
+                  disabled={messagingDisabled}
+                  style={[
+                    styles.offerButton,
+                    messagingDisabled && styles.offerButtonDisabled,
+                  ]}
+              >
+                <Icon name="dollar-sign" size={22} color={COLORS.white} />
+              </TouchableOpacity>
+          )}
 
-          {/* NEW PHOTO BUTTON */}
+          {/* PHOTO */}
           <TouchableOpacity
               onPress={pickAndSendPhoto}
               disabled={messagingDisabled}
@@ -537,6 +463,7 @@ export default function ChatScreen() {
             />
           </TouchableOpacity>
 
+          {/* TEXT INPUT */}
           <TextInput
               style={[styles.input, messagingDisabled && styles.inputDisabled]}
               placeholder="Type a message..."
@@ -546,6 +473,7 @@ export default function ChatScreen() {
               editable={!messagingDisabled}
           />
 
+          {/* SEND */}
           <TouchableOpacity
               style={[styles.sendButton, messagingDisabled && styles.sendButtonDisabled]}
               onPress={sendMessageToFirestore}
@@ -558,16 +486,9 @@ export default function ChatScreen() {
   );
 }
 
-/* ======================================================================
- *  STYLES
- * ====================================================================== */
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+  container: { flex: 1, backgroundColor: COLORS.background },
 
-  /* HEADER */
   header: {
     backgroundColor: COLORS.white,
     paddingHorizontal: 16,
@@ -577,18 +498,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.border,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
   },
 
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
 
   avatar: {
     width: 40,
@@ -599,65 +511,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  avatarText: {
-    color: COLORS.white,
-    fontWeight: "600",
-  },
+  avatarText: { color: COLORS.white, fontWeight: "600" },
 
-  partnerName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#111827",
-  },
+  partnerName: { fontSize: 16, fontWeight: "600", color: "#111827" },
+  itemName: { fontSize: 12, color: "#6B7280" },
 
-  itemName: {
-    fontSize: 12,
-    color: "#6B7280",
-  },
+  messagesWrapper: { flex: 1, backgroundColor: "#F3F4F6" },
+  messagesContainer: { padding: 12 },
 
-  /* MESSAGE LIST */
-  messagesWrapper: {
-    flex: 1,
-    backgroundColor: "#F3F4F6",
-  },
+  blockedMessages: { alignItems: "center", gap: 8, padding: 24 },
 
-  messagesContainer: {
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 12,
-  },
+  messageContainer: { marginBottom: 10, maxWidth: "78%" },
+  myMessageContainer: { alignSelf: "flex-end" },
+  otherMessageContainer: { alignSelf: "flex-start" },
 
-  blockedMessages: {
-    alignItems: "center",
-    gap: 8,
-    padding: 24,
-  },
+  messageBubble: { padding: 12, borderRadius: 18 },
 
-  /* CHAT BUBBLES */
-  messageContainer: {
-    marginBottom: 10,
-    maxWidth: "78%",
-  },
-
-  myMessageContainer: {
-    alignSelf: "flex-end",
-  },
-
-  otherMessageContainer: {
-    alignSelf: "flex-start",
-  },
-
-  messageBubble: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 18,
-  },
-
-  myMessage: {
-    backgroundColor: COLORS.primary,
-    borderBottomRightRadius: 4,
-  },
-
+  myMessage: { backgroundColor: COLORS.primary, borderBottomRightRadius: 4 },
   otherMessage: {
     backgroundColor: COLORS.white,
     borderBottomLeftRadius: 4,
@@ -665,50 +535,12 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
   },
 
-  messageText: {
-    fontSize: 15,
-    lineHeight: 20,
-    color: "#111827",
-  },
+  messageText: { fontSize: 15, color: "#111827" },
+  myMessageText: { color: COLORS.white },
 
-  myMessageText: {
-    color: COLORS.white,
-  },
+  timeText: { fontSize: 11, color: "#9CA3AF", marginTop: 4, alignSelf: "flex-end" },
 
-  timeText: {
-    fontSize: 11,
-    color: "#9CA3AF",
-    marginTop: 4,
-    alignSelf: "flex-end",
-  },
-
-  /* PHOTO MESSAGE */
-  photo: {
-    width: 220,
-    height: 220,
-    borderRadius: 12,
-    backgroundColor: "#D1D5DB",
-  },
-
-  /* REACTIONS */
-  reactionRow: {
-    flexDirection: "row",
-    gap: 4,
-    marginTop: 4,
-  },
-
-  reactionBubble: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-
-  reactionText: {
-    fontSize: 12,
-  },
+  photo: { width: 220, height: 220, borderRadius: 12, backgroundColor: "#D1D5DB" },
 
   reactionPicker: {
     flexDirection: "row",
@@ -718,25 +550,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
-    alignSelf: "flex-start",
   },
 
-  reactionPickerEmoji: {
-    fontSize: 20,
-    color: "#F9FAFB",
-  },
+  reactionPickerEmoji: { fontSize: 20, color: "#F9FAFB" },
 
-  /* INPUT BAR */
   inputContainer: {
     flexDirection: "row",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    padding: 12,
     backgroundColor: COLORS.white,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: COLORS.border,
     alignItems: "center",
     gap: 10,
   },
+
+  offerButton: {
+    backgroundColor: "#10B981",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  offerButtonDisabled: { backgroundColor: "#9CA3AF" },
 
   input: {
     flex: 1,
@@ -745,12 +582,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     fontSize: 15,
-    maxHeight: 100,
   },
 
-  inputDisabled: {
-    opacity: 0.6,
-  },
+  inputDisabled: { opacity: 0.6 },
 
   sendButton: {
     backgroundColor: COLORS.primary,
@@ -761,9 +595,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  sendButtonDisabled: {
-    backgroundColor: "#9CA3AF",
-  },
+  sendButtonDisabled: { backgroundColor: "#9CA3AF" },
 
   blockNotice: {
     flexDirection: "row",
@@ -772,12 +604,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#EFF6FF",
     borderBottomWidth: 1,
     borderColor: "#DBEAFE",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    padding: 16,
   },
 
-  blockNoticeText: {
-    color: "#1F2937",
-    flex: 1,
-  },
+  blockNoticeText: { color: "#1F2937", flex: 1 },
 });
