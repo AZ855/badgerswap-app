@@ -227,6 +227,30 @@ export async function declineOffer(threadId: string, messageId: string) {
     });
 }
 
+/* =====================================================================
+   TRANSACTION: SAVE RECORD WHEN OFFER ACCEPTED (NEW)
+===================================================================== */
+export async function createTransaction({
+                                            itemId,
+                                            sellerId,
+                                            buyerId,
+                                            amount,
+                                        }: {
+    itemId: string;
+    sellerId: string;
+    buyerId: string;
+    amount: number;
+}) {
+    const ref = collection(db, "transactions");
+    return await addDoc(ref, {
+        itemId,
+        sellerId,
+        buyerId,
+        amount,
+        createdAt: serverTimestamp(),
+    });
+}
+
 export function subscribeToMessages(threadId: string, callback: (msgs: ChatMessage[]) => void) {
     const t = doc(db, "chats", threadId);
     const messagesRef = collection(t, "messages");

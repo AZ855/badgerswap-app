@@ -223,7 +223,7 @@ export default function ChatScreen() {
               <View style={{ flexDirection: "row", marginTop: 6, gap: 10 }}>
                 <TouchableOpacity
                     onPress={() =>
-                        acceptOffer(threadId, item.id, item.raw.senderId, amt)
+                        acceptOffer(threadId, item.id, buyerId, amt)
                     }
                 >
                   <Text style={{ color: COLORS.primary, fontWeight: "600" }}>
