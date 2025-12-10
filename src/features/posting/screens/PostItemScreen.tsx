@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -69,10 +69,43 @@ function parseEditListingPayload(raw?: string | string[]) {
   }
 }
 
+type DraftSnapshotPayload = {
+  title: string;
+  categories: string[];
+  condition: Item['condition'] | '';
+  price: string;
+  description: string;
+  images: { localUri: string; remoteUrl?: string | null }[];
+  location: LocationSelection | null;
+};
+
+function serializeDraftSnapshot(payload: DraftSnapshotPayload) {
+  return JSON.stringify({
+    title: payload.title,
+    categories: payload.categories,
+    condition: payload.condition,
+    price: payload.price,
+    description: payload.description,
+    images: payload.images.map((img) => ({
+      localUri: img.localUri,
+      remoteUrl: img.remoteUrl ?? null,
+    })),
+    location: payload.location
+      ? {
+          description: payload.location.description?.trim() ?? '',
+          lat: typeof payload.location.lat === 'number' ? payload.location.lat : null,
+          lng: typeof payload.location.lng === 'number' ? payload.location.lng : null,
+        }
+      : null,
+  });
+}
+
 export default function PostItemScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ editItem?: string }>();
   const actionsAnim = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView | null>(null);
+  const descriptionSectionOffset = useRef(0);
   const { showToast } = useToast();
 
   const [title, setTitle] = useState('');
@@ -98,6 +131,8 @@ export default function PostItemScreen() {
     location: LocationSelection | null;
     imageUris: string[];
   } | null>(null);
+  const [lastSavedDraftSnapshot, setLastSavedDraftSnapshot] = useState<string | null>(null);
+  const [clearingDraft, setClearingDraft] = useState(false);
 
   const isEditing = Boolean(editingListingId);
 
@@ -124,6 +159,36 @@ export default function PostItemScreen() {
         images.length > 0 ||
         effectiveLocation
     );
+
+  const currentDraftSnapshot = useMemo(() => {
+    if (isEditing) return null;
+    return serializeDraftSnapshot({
+      title,
+      categories,
+      condition,
+      price,
+      description,
+      images: images.map((img) => ({
+        localUri: img.localUri,
+        remoteUrl: img.remoteUrl ?? null,
+      })),
+      location: locationSelection
+        ? {
+            description: locationSelection.description ?? '',
+            lat: typeof locationSelection.lat === 'number' ? locationSelection.lat : undefined,
+            lng: typeof locationSelection.lng === 'number' ? locationSelection.lng : undefined,
+          }
+        : null,
+    });
+  }, [isEditing, title, categories, condition, price, description, images, locationSelection]);
+
+  const shouldShowDraftButton = !isEditing && (hasDraftableContent || Boolean(lastSavedDraftSnapshot));
+  const hasUnsavedDraftChanges = Boolean(
+    shouldShowDraftButton &&
+      hasDraftableContent &&
+      currentDraftSnapshot &&
+      (!lastSavedDraftSnapshot || currentDraftSnapshot !== lastSavedDraftSnapshot)
+  );
 
   const normalizeLocation = (selection: LocationSelection | null) => {
     if (!selection) return null;
@@ -171,7 +236,7 @@ export default function PostItemScreen() {
 
   const canSubmit = isEditing ? hasEditingChanges : isFormValid;
   const canPreview = isFormValid;
-  const shouldShowActions = canPreview || canSubmit || hasDraftableContent;
+  const shouldShowActions = canPreview || canSubmit || shouldShowDraftButton;
 
   useEffect(() => {
     Animated.timing(actionsAnim, {
@@ -233,27 +298,45 @@ export default function PostItemScreen() {
     if (!userId) return;
 
     void loadDraftListing(userId).then((draft) => {
-      if (!draft) return;
+      if (!draft) {
+        setLastSavedDraftSnapshot(null);
+        return;
+      }
+      const normalizedCategories = draft.categories?.[0] ? [draft.categories[0]] : [];
+      const normalizedCondition = (draft.condition as Item['condition']) ?? '';
+      const normalizedLocation = draft.location
+        ? {
+            description: draft.location.description ?? '',
+            lat: typeof draft.location.lat === 'number' ? draft.location.lat : undefined,
+            lng: typeof draft.location.lng === 'number' ? draft.location.lng : undefined,
+          }
+        : null;
+      const nextImages = (draft.images ?? []).map((img, idx) => ({
+        id: `draft-${idx}`,
+        localUri: img.localUri,
+        remoteUrl: img.remoteUrl ?? undefined,
+      }));
+
       setTitle(draft.title ?? '');
-      setCategories(draft.categories?.[0] ? [draft.categories[0]] : []);
-      setCondition((draft.condition as Item['condition']) ?? '');
+      setCategories(normalizedCategories);
+      setCondition(normalizedCondition);
       setPrice(draft.price ?? '');
       setDescription(draft.description ?? '');
-      setLocationSelection(
-        draft.location
-          ? {
-              description: draft.location.description ?? '',
-              lat: typeof draft.location.lat === 'number' ? draft.location.lat : undefined,
-              lng: typeof draft.location.lng === 'number' ? draft.location.lng : undefined,
-            }
-          : null
-      );
-      setImages(
-        (draft.images ?? []).map((img, idx) => ({
-          id: `draft-${idx}`,
-          localUri: img.localUri,
-          remoteUrl: img.remoteUrl ?? undefined,
-        }))
+      setLocationSelection(normalizedLocation);
+      setImages(nextImages);
+      setLastSavedDraftSnapshot(
+        serializeDraftSnapshot({
+          title: draft.title ?? '',
+          categories: normalizedCategories,
+          condition: normalizedCondition,
+          price: draft.price ?? '',
+          description: draft.description ?? '',
+          images: nextImages.map((img) => ({
+            localUri: img.localUri,
+            remoteUrl: img.remoteUrl ?? null,
+          })),
+          location: normalizedLocation,
+        })
       );
     });
   }, [isEditing, params.editItem]);
@@ -270,6 +353,17 @@ export default function PostItemScreen() {
         localUri: uri,
       },
     ]);
+  };
+
+  const scrollDescriptionIntoView = () => {
+    if (!scrollViewRef.current) return;
+    setTimeout(() => {
+      const targetY = Math.max(descriptionSectionOffset.current - 40, 0);
+      scrollViewRef.current?.scrollTo({
+        y: targetY,
+        animated: true,
+      });
+    }, 60);
   };
 
   const openCamera = async () => {
@@ -334,28 +428,33 @@ export default function PostItemScreen() {
   };
 
   const handleSaveDraft = async () => {
-    if (savingDraft) return;
+    if (savingDraft || clearingDraft) return;
     const userId = auth.currentUser?.uid;
     if (!userId) {
       Alert.alert('Not signed in', 'Please log in before saving a draft.');
       return;
     }
 
+    const draftState: DraftSnapshotPayload = {
+      title,
+      categories,
+      condition,
+      price,
+      description,
+      images: images.map((img) => ({
+        localUri: img.localUri,
+        remoteUrl: img.remoteUrl ?? null,
+      })),
+      location: locationSelection,
+    };
+
     setSavingDraft(true);
     try {
       await saveDraftListing(userId, {
-        title,
-        categories,
-        condition,
-        price,
-        description,
-        images: images.map((img) => ({
-          localUri: img.localUri,
-          remoteUrl: img.remoteUrl ?? null,
-        })),
-        location: locationSelection,
+        ...draftState,
         lastReminderAt: Date.now(),
       });
+      setLastSavedDraftSnapshot(serializeDraftSnapshot(draftState));
       showToast({
         title: 'Draft saved',
         message: 'We will remind you to finish it later.',
@@ -365,6 +464,30 @@ export default function PostItemScreen() {
       Alert.alert('Could not save draft', err?.message ?? 'Please try again.');
     } finally {
       setSavingDraft(false);
+    }
+  };
+
+  const handleClearDraft = async () => {
+    if (clearingDraft || savingDraft) return;
+    const userId = auth.currentUser?.uid;
+    if (!userId) {
+      Alert.alert('Not signed in', 'Please log in before clearing a draft.');
+      return;
+    }
+
+    setClearingDraft(true);
+    try {
+      await clearDraftListing(userId);
+      resetForm({ skipDraftClear: true });
+      showToast({
+        title: 'Draft cleared',
+        message: 'Saved draft removed.',
+      });
+    } catch (err: any) {
+      console.error('Failed to clear draft', err);
+      Alert.alert('Could not clear draft', err?.message ?? 'Please try again.');
+    } finally {
+      setClearingDraft(false);
     }
   };
 
@@ -433,7 +556,7 @@ export default function PostItemScreen() {
     return true;
   };
 
-  const resetForm = () => {
+  const resetForm = (options?: { skipDraftClear?: boolean }) => {
     setTitle('');
     setCategories([]);
     setCondition('');
@@ -441,7 +564,8 @@ export default function PostItemScreen() {
     setDescription('');
     setImages([]);
     setLocationSelection(null);
-    if (auth.currentUser?.uid) {
+    setLastSavedDraftSnapshot(null);
+    if (!options?.skipDraftClear && auth.currentUser?.uid) {
       void clearDraftListing(auth.currentUser.uid);
     }
   };
@@ -567,6 +691,7 @@ export default function PostItemScreen() {
     <View style={styles.container}>
       {/* Content */}
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
@@ -770,7 +895,12 @@ export default function PostItemScreen() {
           </View>
 
           {/* Description */}
-          <View style={styles.section}>
+          <View
+            style={styles.section}
+            onLayout={(event) => {
+              descriptionSectionOffset.current = event.nativeEvent.layout.y;
+            }}
+          >
             <View style={styles.labelRow}>
               <Text style={styles.label}>Description</Text>
               <Text style={styles.required}>*</Text>
@@ -781,6 +911,7 @@ export default function PostItemScreen() {
               placeholderTextColor="#9CA3AF"
               value={description}
               onChangeText={setDescription}
+              onFocus={scrollDescriptionIntoView}
               multiline
               numberOfLines={5}
               textAlignVertical="top"
@@ -830,14 +961,20 @@ export default function PostItemScreen() {
           },
         ]}
       >
-        {!isEditing && hasDraftableContent && (
+        {shouldShowDraftButton && (
           <TouchableOpacity
             style={styles.draftButton}
-            disabled={posting || savingDraft}
-            onPress={handleSaveDraft}
+            disabled={posting || savingDraft || clearingDraft}
+            onPress={hasUnsavedDraftChanges ? handleSaveDraft : handleClearDraft}
           >
             <Text style={styles.draftButtonText}>
-              {savingDraft ? 'Saving draft...' : 'Save draft'}
+              {savingDraft
+                ? 'Saving draft...'
+                : clearingDraft
+                  ? 'Clearing draft...'
+                  : hasUnsavedDraftChanges
+                    ? 'Save draft'
+                    : 'Clear draft'}
             </Text>
           </TouchableOpacity>
         )}
