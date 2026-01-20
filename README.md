@@ -25,8 +25,7 @@ I contributed to core parts of the application implementation and integration in
 ## Tech stack
 - React Native / Expo
 - TypeScript / JavaScript
-- (Add: Firebase/Firestore/Auth if used)
-- (Add: Expo Router / React Navigation if used)
+- Firebase
 
 ## How to run locally
 ### Prerequisites
