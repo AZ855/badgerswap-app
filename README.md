@@ -1,148 +1,55 @@
-### 0. Prerequisites
+# BadgerSwap — Marketplace Mobile App
 
-**Required**
-- [Git](https://git-scm.com/downloads)
-- [Node.js LTS (18 or 20)](https://nodejs.org)
-- [VS Code](https://code.visualstudio.com)  
-- **Expo Go** app on your physical phone (App Store / Play Store)
+A team-based marketplace mobile application developed over a semester-long project.  
+This repository highlights collaborative software engineering, mobile app architecture, and end-to-end product implementation.
 
----
+## What this project is
+BadgerSwap is a marketplace-style app where users can browse listings and interact with other users through core marketplace flows (e.g., creating items, viewing item details, managing user state, etc.). The focus of this project was to build a maintainable and testable mobile application with clear separation of concerns.
 
-### 1. Clone the Repo
+## Engineering focus (what I want reviewers to notice)
+- **Team-based development**: collaborative planning, code reviews, and feature integration across multiple contributors.
+- **Modular UI & navigation**: reusable components and consistent screen structure.
+- **Data flow & state**: predictable data handling across screens and features.
+- **Reliability practices**: validation, error handling, and basic testing discipline where applicable.
+- **Documentation**: clear setup instructions and implementation notes for future contributors.
 
-```bash
-git clone https://github.com/JohnnyHong0116/BadgerSwap_CS407.git
-cd BadgerSwap_CS407
-```
+## My contribution (Chenchen / Amily)
+I contributed to core parts of the application implementation and integration in a team setting, including:
+- Implementing and refining key screens/components and their navigation flow
+- Improving data handling and user interactions across features
+- Supporting integration work (merging, resolving conflicts, ensuring the app runs end-to-end)
+- Writing/maintaining documentation for reproducibility
 
----
+> Note: This repository reflects a team project. To respect collaborators and course policies, sensitive keys/secrets and private data are not included.
 
-### 2. Install Dependencies
+## Tech stack
+- React Native / Expo
+- TypeScript / JavaScript
+- (Add: Firebase/Firestore/Auth if used)
+- (Add: Expo Router / React Navigation if used)
 
+## How to run locally
+### Prerequisites
+- Node.js (LTS recommended)
+- npm or yarn
+- Expo Go app (for quick testing) or an emulator (iOS/Android)
+
+### Install
 ```bash
 npm install
 ```
 
----
-
-### 3. Environment Variables
-
-If a sample file exists, copy it and fill in values:
-
-```bash
-cp .env.example .env
+## Start
+bash
 ```
-
-Never commit `.env` files — only the `.env.example`.
-
-#### Google Places API key (pickup location search)
-1. In the Google Cloud Console, enable the **Places API** for your project.
-2. Create an API key (Credentials → Create credentials → API key) and **restrict it** to the Places API and your app platforms (iOS/Android + bundle IDs if desired).
-3. Add the key to your local `.env` file:
-   ```bash
-   EXPO_PUBLIC_GOOGLE_PLACES_API_KEY=YOUR_KEY_HERE
-   ```
-4. Restart Expo (`npm run start` or `npx expo start`) so the new env var is picked up. The pickup-location search UI will load once this key is present.
-
----
-
-### 4. Run the App
-
-Start the Expo dev server:
-
-```bash
-npm run start
-# or:
 npx expo start
 ```
+Then scan the QR code using Expo Go (same Wi-Fi) or run on an emulator.
 
- If cannot connect/taking longer time to open app after scanning QR code, use a tunnel:
- ```bash
- npx expo start --tunnel
-```
+## Repository notes
+If this project uses cloud services (e.g., Firebase), configuration files containing secrets are intentionally excluded.
 
-If you enconter "Error: Failed to install ANY PACKAGE", use sudo to download.
+If you need environment variables, create a .env file based on .env.example (if provided).
 
-### For setting up personal branches
-
-Make sure have the latest main
-
-```bash
-git checkout main
-git pull origin main
-```
-
-Create a branch using own name
-
-```bash
-git checkout -b name
-git push -u origin name
-```
-
-Work and commit normally
-
-```bash
-git add -A
-git commit -m "feat: added profile screen"
-git push
-```
-
-Merge own branch to main (only for instruction update rn)
-
-```bash
-git checkout main
-git pull origin main
-
-git merge name
-
-git push origin main
-```
-
----
-
-## BadgerSwap Team Milestone & Time Table
-
-### Team Members & Branch Names
-
-| **Role ID** | **Member Name** | **Branch Name** | **Main Responsibility** |
-|--------------|-----------------|--------------|--------------------------|
-| **A** | Julie Chen      | `julie`      | Authentication & Profile |
-| **B** | Chenchen Zheng  | `chenchen`   | Marketplace Core |
-| **C** | Johnny Hong     | `johnny`     | Item Details & Favorites |
-| **D** | Kane Li         | `kane`       | Messaging & Notifications |
-
-
-Each member commits only to their own branch during development and merges on milestone deadlines.
-
----
-
-| **Milestone** | **Date** | **Goal** | **Role A** | **Role B** | **Role C** | **Role D** |
-|---------------|-----------|-----------|---------------|---------------|---------------|---------------|
-| **Oct 27** | Authentication + Marketplace Prototype | Users can register/login with UW email and browse mock listings; navigation Login → Marketplace → Item → Chat | **Login & Register UI** – UW email validation, mock login | **Marketplace (Home)** – search bar, categories, mock item grid | **Item Detail UI** – image carousel, price, description, favorite toggle UI | **Chat UI** – chat list + message screen (mock data) |
-| **Nov 10** | Posting + Listing Enhancement | Enable posting items + favorites + profile UI; still mock/local data | **Settings Screen (New)** – Settings UI, logout trigger, preferences placeholders | **Post Item Screen (UI + Logic)** – full listing form + preview, multi-image picker, campus location selector **+ Backend Work:** Cloudinary upload integration, secure `.env`, type-safe Item model, Firebase Firestore listing write, Firebase service structure, marketplace backend fetch replacing mock data | **Profile UI + Favorites** – Profile header (done), Profile tabs, favorites tab logic, logout implementation | **Chat Enhancements** – message search, thread previews, improved navigation from item → chat |
-| **Nov 24** | **Backend Foundations + Profile Integration** | Begin Firebase integration; connect core features to backend | **Firebase Auth Foundation** – email/password auth, user document creation, AuthContext state mgmt | **Backend Marketplace Integration** – query Firestore listings, pagination, search, category filters | **My Listings (Firestore)** – fetch user’s listings; Item Detail fetches full listing data from backend | **Chat Backend Schema** – create/find chat thread doc on “Message Seller”; message structure defined |
-| **Dec 8** | Final Demo & Full Backend Integration | Connect all screens to backend and polish UI | **Auth Finalization** – persisted login, profile edit sync, secure user state | **Marketplace API Finalization** – image upload pipeline, listing search, full backend filtering | **Favorites/MyListings API** – backend favorites, listing updates, unified profile data | **Real-Time Chat API** – Firestore/RTDB chat sync, unread badges, delivery states, optional push notifications |
-
-
----
-
-### Estimated Workload
-| Milestone | Hours / Person | Complexity |
-|------------|----------------|-------------|
-| Oct 27 | 6 – 8 h | UI layout + mock logic |
-| Nov 10 | 10 – 12 h | Form handling + integrations |
-| Nov 24 | 6 – 8 h | App logic + backend foundation |
-| Dec 8 | 7 – 9 h | Backend integration + polish |
-
----
-
-### Summary
-Workload and difficulty are evenly distributed among all members.  
-- **Role A – Authentication & User Profiles:** Builds login/register flow, user info editing, and connects authentication to the backend.  
-- **Role B – Marketplace Core & Backend setup:** Designs and codes the main feed, item posting, and marketplace API integration (central part of the app).  
-- **Role C – Item Details & Favorites:** Implements detailed item views, favorites, personal listings, and related backend storage.  
-- **Role D – Messaging & Notifications:** Develops chat interfaces, navigation between screens, and later adds notifications and real-time updates.
-
-All four roles contribute one major screen or feature per milestone, ensuring balanced progress and no blocking dependencies.
-
----
+## Project status
+This repository is maintained as a portfolio/demo artifact and may not reflect active development.
